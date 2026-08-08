@@ -1,0 +1,21 @@
+graph LR
+    subgraph Inputs["Smart Queue Engine Inputs"]
+        I1["AI Triage Urgency Score (60%)"]
+        I2["Patient Waiting Time (40%)"]
+        I3["Blood Test Readiness Flag"]
+        I4["Doctor Specialization & Workload"]
+    end
+
+    subgraph Calculator["Priority Score Algorithm"]
+        C1["Score = (UrgencyScore * 0.6) + (WaitMinutes * 0.4)"]
+        C2["Sort Queue Descending by Priority Score"]
+    end
+
+    subgraph Outputs["Queue Outputs"]
+        O1["Recommended Priority Queue Position"]
+        O2["Doctor Mailbox Approval Trigger"]
+        O3["Doctor Queue Override Option"]
+    end
+
+    Inputs --> Calculator
+    Calculator --> Outputs

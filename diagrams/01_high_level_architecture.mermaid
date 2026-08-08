@@ -1,0 +1,35 @@
+graph TD
+    subgraph Kiosk["Village Kiosk Terminal (Gram Panchayat)"]
+        K1["Touch Screen UI & Voice Guidance"]
+        K2["AI Biometric Face Recognition"]
+        K3["Blood Diagnostic Sensor Module"]
+        K4["Medicine Vending Dispenser Hardware"]
+    end
+
+    subgraph Server["RuralCare AI Express Backend & WebSockets"]
+        S1["REST API Endpoints"]
+        S2["WebRTC 2-Way Signaling Gateway"]
+        S3["AI Provider Gateway (Grok & Gemini)"]
+        S4["Smart Queue & Workload Engine"]
+        S5["Offline Sync Manager"]
+    end
+
+    subgraph Doctor["Doctor Command Center Portal"]
+        D1["Patient Approval Inbox & Mailbox"]
+        D2["Priority Queue Dashboard"]
+        D3["WebRTC HD Video Consultation"]
+        D4["Remote Prescription & Medicine Vending Trigger"]
+    end
+
+    K1 --> S1
+    K2 --> S1
+    K3 --> S1
+    K4 --> S1
+    S1 <--> S5
+    S1 <--> S4
+    S3 <--> S1
+    S2 <--> K1
+    S2 <--> D3
+    D1 <--> S1
+    D2 <--> S1
+    D4 --> S1
