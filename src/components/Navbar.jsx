@@ -2,6 +2,9 @@ import React from 'react';
 import { Monitor, Stethoscope, ShieldCheck, LogOut, UserCheck } from 'lucide-react';
 
 export default function Navbar({ activePortal, setActivePortal, authenticatedUser, onLogout }) {
+  const isPatient = authenticatedUser?.role === 'patient' || authenticatedUser?.role === 'kiosk';
+  const isDoctor = authenticatedUser?.role === 'doctor';
+
   return (
     <header className="bg-slate-900/90 border-b border-slate-800 backdrop-blur-xl sticky top-0 z-40 px-4 py-3 shadow-2xl">
       <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-3">
@@ -26,51 +29,37 @@ export default function Navbar({ activePortal, setActivePortal, authenticatedUse
           </div>
         </div>
 
-        {/* Navigation Portal Switcher & Auth Controls */}
-        <div className="flex flex-wrap items-center gap-3">
-          
-          <div className="bg-slate-950 p-1 rounded-2xl border border-slate-800 flex items-center shadow-inner">
-            <button
-              onClick={() => setActivePortal('kiosk')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black transition-all ${
-                activePortal === 'kiosk'
-                  ? 'bg-gradient-to-r from-teal-500 to-cyan-500 text-slate-950 shadow-md shadow-teal-500/20 scale-105'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              <Monitor className="w-4 h-4" />
-              Patient Kiosk Portal
-            </button>
+        {/* User Status Bar & Logout Controls */}
+        <div className="flex items-center gap-3">
+          {authenticatedUser ? (
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 bg-slate-950 px-3.5 py-1.5 rounded-2xl border border-slate-800 text-xs">
+                {isDoctor ? (
+                  <Stethoscope className="w-4 h-4 text-cyan-400" />
+                ) : (
+                  <UserCheck className="w-4 h-4 text-teal-400" />
+                )}
+                <span className="font-extrabold text-slate-200">{authenticatedUser.name}</span>
+                <span className={`text-[10px] font-mono font-black px-2 py-0.5 rounded-full uppercase border ${
+                  isDoctor ? 'bg-cyan-950 text-cyan-300 border-cyan-800' : 'bg-teal-950 text-teal-300 border-teal-800'
+                }`}>
+                  {isDoctor ? 'Doctor Session' : 'Patient Session'}
+                </span>
+              </div>
 
-            {authenticatedUser?.role !== 'kiosk' && (
-              <button
-                onClick={() => setActivePortal('doctor')}
-                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black transition-all ${
-                  activePortal === 'doctor'
-                    ? 'bg-gradient-to-r from-cyan-500 to-teal-500 text-slate-950 shadow-md shadow-cyan-500/20 scale-105'
-                    : 'text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                <Stethoscope className="w-4 h-4" />
-                Doctor Portal Mode
-              </button>
-            )}
-          </div>
-
-          {authenticatedUser && (
-            <div className="flex items-center gap-2 bg-slate-950 px-3 py-1.5 rounded-2xl border border-slate-800 text-xs">
-              <UserCheck className="w-4 h-4 text-teal-400" />
-              <span className="font-bold text-slate-200">{authenticatedUser.name}</span>
               <button
                 onClick={onLogout}
-                className="ml-1 p-1 bg-rose-950 hover:bg-rose-900 border border-rose-700/50 text-rose-300 rounded-lg transition"
+                className="px-3 py-1.5 bg-rose-950 hover:bg-rose-900 border border-rose-700/50 text-rose-300 rounded-2xl font-extrabold text-xs transition flex items-center gap-1.5 shadow-md shadow-rose-950/40"
                 title="Logout Session"
               >
-                <LogOut className="w-3.5 h-3.5" />
+                <LogOut className="w-3.5 h-3.5" /> Logout
               </button>
             </div>
+          ) : (
+            <div className="text-xs font-extrabold text-slate-400 bg-slate-950 px-3 py-1 rounded-full border border-slate-800">
+              🔒 Authentication Required
+            </div>
           )}
-
         </div>
 
       </div>
