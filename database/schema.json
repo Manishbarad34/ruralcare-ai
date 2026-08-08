@@ -1,0 +1,59 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "RuralCare AI Healthcare Schema Definition",
+  "type": "object",
+  "properties": {
+    "villagers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "name", "age", "phone"],
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "age": { "type": "integer" },
+          "gender": { "type": "string" },
+          "village": { "type": "string" },
+          "phone": { "type": "string" },
+          "bloodGroup": { "type": "string" },
+          "allergies": { "type": "array", "items": { "type": "string" } },
+          "medicalHistory": { "type": "array" }
+        }
+      }
+    },
+    "doctors": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "name", "licenseNo", "specialty"],
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "licenseNo": { "type": "string" },
+          "specialty": { "type": "string" },
+          "experience": { "type": "string" },
+          "status": { "type": "string", "enum": ["Online", "Offline", "Busy"] },
+          "currentLoad": { "type": "integer" }
+        }
+      }
+    },
+    "approvalMailbox": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["requestId", "villagerId", "doctorId", "status"],
+        "properties": {
+          "requestId": { "type": "string" },
+          "villagerId": { "type": "string" },
+          "villagerName": { "type": "string" },
+          "doctorId": { "type": "string" },
+          "doctorName": { "type": "string" },
+          "symptoms": { "type": "string" },
+          "emergencyLevel": { "type": "string", "enum": ["LOW", "MEDIUM", "HIGH", "CRITICAL"] },
+          "status": { "type": "string", "enum": ["PENDING", "APPROVED", "DECLINED", "LATER"] },
+          "requestedAt": { "type": "string" }
+        }
+      }
+    }
+  }
+}

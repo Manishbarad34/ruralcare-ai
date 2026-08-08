@@ -1,0 +1,17 @@
+{
+  "name": "ruralcare-ai-backend",
+  "version": "1.0.0",
+  "description": "Backend Express REST API, PostgreSQL JSON Store, and WebSockets Signaling Engine for RuralCare AI",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "ws": "^8.18.0"
+  }
+}
