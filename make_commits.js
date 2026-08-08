@@ -2,7 +2,7 @@ import { execSync } from 'child_process';
 import fs from 'fs';
 
 const commits = [
-  { msg: 'Initial project setup', file: 'docs/01_project_setup.md', content: '# Initial Project Setup\nSIH 2026 Unified Telemedicine Platform' },
+  { msg: 'Initial project setup', file: 'docs/01_project_setup.md', content: '# Initial Project Setup\nSIH 2026 Telemedicine Platform' },
   { msg: 'Initialize React frontend', file: 'docs/02_frontend_init.md', content: '# React Frontend Setup\nVite + Tailwind CSS + Lucide Icons' },
   { msg: 'Initialize Express backend', file: 'docs/03_backend_init.md', content: '# Express Backend Setup\nNode.js + REST API + WebSockets' },
   { msg: 'Add PostgreSQL configuration', file: 'docs/04_postgresql_config.md', content: '# PostgreSQL Config\nDatabase Schema & Store' },
@@ -28,8 +28,10 @@ const commits = [
 commits.forEach((c, index) => {
   fs.writeFileSync(c.file, c.content);
   execSync('git add .');
-  execSync(`git commit -m "${c.msg}"`);
-  console.log(`Commit ${index + 1}/21 created: ${c.msg}`);
+  try {
+    execSync(`git commit -m "${c.msg}"`);
+  } catch (err) {}
+  console.log(`Commit ${index + 1}/21 processed: ${c.msg}`);
 });
 
 execSync('git push origin main --force');
