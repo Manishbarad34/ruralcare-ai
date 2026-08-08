@@ -1,0 +1,41 @@
+{
+  "villagers": [
+    {
+      "id": "VILL-101",
+      "name": "Rahul Kumar",
+      "age": 28,
+      "gender": "Male",
+      "village": "Rampur",
+      "phone": "9876543210",
+      "bloodGroup": "O+",
+      "allergies": ["None"],
+      "registered": true,
+      "createdAt": "2026-08-08T12:00:00.000Z",
+      "medicalHistory": []
+    }
+  ],
+  "doctors": [
+    {
+      "id": "DOC-01",
+      "name": "Dr. Manish Barad",
+      "licenseNo": "MCI-9901",
+      "specialty": "General Physician",
+      "experience": "10 Yrs",
+      "status": "Online",
+      "currentLoad": 0,
+      "registered": true
+    }
+  ],
+  "kioskInventory": [
+    { "id": "MED-1", "name": "Paracetamol 500mg", "slot": "Slot A1", "category": "Fever / Analgesic", "totalCapacity": 100, "currentStock": 85, "unit": "strips", "autoOrderTriggered": false },
+    { "id": "MED-2", "name": "Azithromycin 500mg", "slot": "Slot A2", "category": "Antibiotic", "totalCapacity": 50, "currentStock": 30, "unit": "strips", "autoOrderTriggered": false },
+    { "id": "MED-3", "name": "Amoxicillin 250mg", "slot": "Slot B1", "category": "Antibiotic", "totalCapacity": 60, "currentStock": 42, "unit": "strips", "autoOrderTriggered": false },
+    { "id": "MED-4", "name": "Cetirizine 10mg", "slot": "Slot B2", "category": "Anti-allergy", "totalCapacity": 80, "currentStock": 54, "unit": "strips", "autoOrderTriggered": false },
+    { "id": "MED-5", "name": "ORS Packets (Electral)", "slot": "Slot C1", "category": "Dehydration", "totalCapacity": 150, "currentStock": 110, "unit": "sachets", "autoOrderTriggered": false },
+    { "id": "MED-6", "name": "Metformin 500mg", "slot": "Slot C2", "category": "Diabetes", "totalCapacity": 70, "currentStock": 50, "unit": "strips", "autoOrderTriggered": false }
+  ],
+  "consultationQueue": [],
+  "approvalMailbox": [],
+  "reorderRequests": [],
+  "reviews": []
+}
