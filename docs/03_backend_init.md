@@ -1,2 +1,2 @@
 # Express Backend Setup
-Node.js + REST API
+Node.js + REST API + WebSockets
