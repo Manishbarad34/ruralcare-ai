@@ -1,13 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import AITriageChat from './AITriageChat.jsx';
 import MedicineMarketplace from './MedicineMarketplace.jsx';
 import VideoConsultation from './VideoConsultation.jsx';
 import IncomingCallModal from './IncomingCallModal.jsx';
-import DirectChatOverlay from './DirectChatOverlay.jsx';
 import { User, Stethoscope, Bot, Mic, Video, PackageCheck, Send, CheckCircle2, AlertTriangle, Globe, Sparkles, Inbox, PhoneCall, ShoppingBag, FileText, Clock } from 'lucide-react';
 
-export default function PatientDashboard({ user, token, socket }) {
-  const [activeTab, setActiveTab] = useState('intake'); // 'intake' | 'doctors' | 'pharmacy' | 'prescriptions'
+export default function PatientDashboard({ user, token }) {
+  const [activeTab, setActiveTab] = useState('intake');
   const [selectedLanguage, setSelectedLanguage] = useState('English');
   const [symptomsInput, setSymptomsInput] = useState('');
   const [isRecordingVoice, setIsRecordingVoice] = useState(false);
@@ -17,12 +16,12 @@ export default function PatientDashboard({ user, token, socket }) {
   const [myRequests, setMyRequests] = useState([]);
   const [activeConsultation, setActiveConsultation] = useState(null);
   
-  // Call & Chat Overlay State
+  // Targeted Call Signaling State
   const [incomingCall, setIncomingCall] = useState(null);
   const [isCallingDoctor, setIsCallingDoctor] = useState(false);
   const [callingDoctorName, setCallingDoctorName] = useState('');
-  const [isDirectChatOpen, setIsDirectChatOpen] = useState(false);
 
+  const wsRef = useRef(null);
   const patientName = user?.patientProfile?.fullName || user?.email?.split('@')[0] || 'Patient';
 
   const quickSymptoms = [
@@ -37,6 +36,43 @@ export default function PatientDashboard({ user, token, socket }) {
   const languages = [
     'English', 'Hindi', 'Gujarati', 'Marathi', 'Tamil', 'Telugu', 'Kannada', 'Bengali', 'Punjabi', 'Urdu'
   ];
+
+  // Setup Targeted Authenticated WebSocket Client Connection
+  useEffect(() => {
+    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsHost = window.location.host || 'localhost:5000';
+    const wsUrl = `${wsProtocol}//${wsHost}?token=${token}`;
+
+    const ws = new WebSocket(wsUrl);
+    wsRef.current = ws;
+
+    ws.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        console.log('🔌 Patient WebSocket Event Received:', data.type);
+
+        if (data.type === 'call:invite') {
+          // Doctor is calling Patient -> Ringing modal pops up on Patient's phone!
+          setIncomingCall({
+            callerUserId: data.senderUserId,
+            callerName: data.payload?.callerName || 'Doctor',
+            isVideo: true
+          });
+        } else if (data.type === 'call:accept') {
+          setIsCallingDoctor(false);
+          setActiveTab('consultation');
+        } else if (data.type === 'call:decline') {
+          setIsCallingDoctor(false);
+          setIncomingCall(null);
+          alert('Call was declined.');
+        }
+      } catch (err) {}
+    };
+
+    return () => {
+      ws.close();
+    };
+  }, [token]);
 
   // Fetch Available Doctors Directory from Backend DB
   const fetchDoctors = async () => {
@@ -58,10 +94,6 @@ export default function PatientDashboard({ user, token, socket }) {
       if (res.ok) {
         const data = await res.json();
         setMyRequests(data.requests || []);
-        const activeItem = (data.requests || []).find(r => r.status === 'ACCEPTED' && r.consultation);
-        if (activeItem) {
-          setActiveConsultation(activeItem.consultation);
-        }
       }
     } catch (err) {}
   };
@@ -125,23 +157,36 @@ export default function PatientDashboard({ user, token, socket }) {
     }
   };
 
-  const startDirectCall = (doctor) => {
-    setCallingDoctorName(doctor.fullName);
-    setIsCallingDoctor(true);
-    setTimeout(() => {
-      setIsCallingDoctor(false);
-      setActiveTab('consultation');
-    }, 2000);
+  const handleAcceptDoctorCall = () => {
+    if (wsRef.current && wsRef.current.readyState === 1 && incomingCall?.callerUserId) {
+      wsRef.current.send(JSON.stringify({
+        type: 'call:accept',
+        targetUserId: incomingCall.callerUserId
+      }));
+    }
+    setActiveConsultation({ fullName: incomingCall?.callerName || 'Doctor' });
+    setIncomingCall(null);
+    setActiveTab('consultation');
+  };
+
+  const handleDeclineDoctorCall = () => {
+    if (wsRef.current && wsRef.current.readyState === 1 && incomingCall?.callerUserId) {
+      wsRef.current.send(JSON.stringify({
+        type: 'call:decline',
+        targetUserId: incomingCall.callerUserId
+      }));
+    }
+    setIncomingCall(null);
   };
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto pb-12 w-full px-2 sm:px-4">
+    <div className="space-y-6 max-w-7xl mx-auto pb-12 w-full px-2 sm:px-4 select-none">
       
-      {/* Incoming Call Modal */}
+      {/* Incoming Call Ringing Modal on Patient's Phone */}
       <IncomingCallModal
         incomingCall={incomingCall}
-        onAccept={() => { setIncomingCall(null); setActiveTab('consultation'); }}
-        onDecline={() => setIncomingCall(null)}
+        onAccept={handleAcceptDoctorCall}
+        onDecline={handleDeclineDoctorCall}
       />
 
       {/* Ringing Overlay when Patient calls Doctor */}
@@ -160,7 +205,7 @@ export default function PatientDashboard({ user, token, socket }) {
         </div>
       )}
 
-      {/* PATIENT FIRST HEADER: "How are you feeling today?" */}
+      {/* PATIENT FIRST HEADER */}
       <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-5 sm:p-8 shadow-2xl space-y-4 relative overflow-hidden">
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div>
@@ -172,7 +217,6 @@ export default function PatientDashboard({ user, token, socket }) {
             </p>
           </div>
 
-          {/* Language Selector for AI Intake */}
           <div className="flex items-center gap-2 bg-slate-950 px-3.5 py-2 rounded-2xl border border-slate-800 text-xs font-bold text-slate-300 w-full md:w-auto">
             <Globe className="w-4 h-4 text-teal-400" />
             <span>AI Language:</span>
@@ -211,7 +255,6 @@ export default function PatientDashboard({ user, token, socket }) {
             </button>
           </div>
 
-          {/* Quick Symptom Chips */}
           <div className="flex flex-wrap gap-2 pt-1">
             {quickSymptoms.map((chip, idx) => (
               <button
@@ -298,12 +341,6 @@ export default function PatientDashboard({ user, token, socket }) {
                     >
                       <Send className="w-3.5 h-3.5" /> Request Consultation
                     </button>
-                    <button
-                      onClick={() => startDirectCall(doc)}
-                      className="p-2 bg-slate-800 text-teal-300 rounded-xl border border-slate-700 hover:bg-slate-700"
-                    >
-                      <Video className="w-4 h-4" />
-                    </button>
                   </div>
                 </div>
               ))}
@@ -326,7 +363,7 @@ export default function PatientDashboard({ user, token, socket }) {
       {activeTab === 'consultation' && (
         <VideoConsultation
           villager={user?.patientProfile}
-          doctor={{ name: 'Consulting Doctor' }}
+          doctor={activeConsultation || { fullName: 'Consulting Doctor' }}
           currentRole="patient"
           onCallEnded={() => setActiveTab('intake')}
         />

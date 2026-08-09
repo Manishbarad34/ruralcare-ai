@@ -1,20 +1,19 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import VideoConsultation from './VideoConsultation.jsx';
 import IncomingCallModal from './IncomingCallModal.jsx';
-import DirectChatOverlay from './DirectChatOverlay.jsx';
 import DeliveryPanel from './DeliveryPanel.jsx';
-import { Stethoscope, User, Video, MessageSquare, CheckCircle2, Clock, PackageCheck, ShieldCheck, Inbox, X, Check, BellRing, Pill, Plus, Minus, Send, PhoneCall } from 'lucide-react';
+import { Stethoscope, User, Video, MessageSquare, CheckCircle2, Clock, PackageCheck, ShieldCheck, Inbox, X, Check, BellRing, Pill, Plus, Minus, Send, PhoneCall, PhoneOff } from 'lucide-react';
 
-export default function DoctorDashboard({ user, token, socket }) {
-  const [activeTab, setActiveTab] = useState('mailbox'); // 'mailbox' | 'queue' | 'prescriptions' | 'delivery'
+export default function DoctorDashboard({ user, token }) {
+  const [activeTab, setActiveTab] = useState('mailbox');
   const [mailboxRequests, setMailboxRequests] = useState([]);
   const [activeConsultation, setActiveConsultation] = useState(null);
   
-  // Call & Chat Overlay State
-  const [incomingCall, setIncomingCall] = useState(null);
+  // Real Targeted WebSockets & Call Signaling State
   const [isCallingPatient, setIsCallingPatient] = useState(false);
   const [callingPatientName, setCallingPatientName] = useState('');
-  const [isDirectChatOpen, setIsDirectChatOpen] = useState(false);
+  const [callingTargetUserId, setCallingTargetUserId] = useState(null);
+  const [incomingCall, setIncomingCall] = useState(null);
 
   // Prescription Generator State
   const [prescribeNotes, setPrescribeNotes] = useState('');
@@ -23,9 +22,51 @@ export default function DoctorDashboard({ user, token, socket }) {
   ]);
   const [successMsg, setSuccessMsg] = useState(null);
 
+  const wsRef = useRef(null);
   const doctorProfile = user?.doctorProfile || { fullName: 'Dr. Practitioner', licenseNo: 'MCI-9901', specialty: 'General Physician' };
 
-  // Fetch Doctor's Consultation Mailbox (Row-Level Security Enforced by Backend)
+  // Setup Targeted Authenticated WebSocket Client Connection
+  useEffect(() => {
+    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsHost = window.location.host || 'localhost:5000';
+    const wsUrl = `${wsProtocol}//${wsHost}?token=${token}`;
+
+    const ws = new WebSocket(wsUrl);
+    wsRef.current = ws;
+
+    ws.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        console.log('🔌 Doctor WebSocket Event Received:', data.type);
+
+        if (data.type === 'call:invite') {
+          // Patient is calling Doctor
+          setIncomingCall({
+            callerUserId: data.senderUserId,
+            callerName: data.payload?.callerName || 'Patient',
+            isVideo: true
+          });
+        } else if (data.type === 'call:accept') {
+          // Patient accepted Doctor's call!
+          setIsCallingPatient(false);
+          setActiveConsultation({
+            fullName: callingPatientName || 'Patient',
+            targetUserId: callingTargetUserId
+          });
+        } else if (data.type === 'call:decline') {
+          setIsCallingPatient(false);
+          setIncomingCall(null);
+          alert('Call was declined by patient.');
+        }
+      } catch (err) {}
+    };
+
+    return () => {
+      ws.close();
+    };
+  }, [token, callingPatientName, callingTargetUserId]);
+
+  // Fetch Doctor's Consultation Mailbox
   const fetchDoctorMailbox = async () => {
     try {
       const res = await fetch('/api/consultations/doctor-requests', {
@@ -61,18 +102,59 @@ export default function DoctorDashboard({ user, token, socket }) {
     } catch (err) {}
   };
 
-  const handleStartConsultationCall = (patient) => {
-    setCallingPatientName(patient.fullName || 'Patient');
+  // DOCTOR INITIATES CALL -> SENDS TARGETED WS SIGNAL TO PATIENT PHONE!
+  const handleInitiateCallToPatient = (reqItem) => {
+    const targetPatientUserId = reqItem.patient?.userId;
+    const targetPatientName = reqItem.patient?.fullName || 'Patient';
+
+    if (!targetPatientUserId) {
+      return alert('Patient user ID not found.');
+    }
+
+    setCallingPatientName(targetPatientName);
+    setCallingTargetUserId(targetPatientUserId);
     setIsCallingPatient(true);
-    setTimeout(() => {
-      setIsCallingPatient(false);
-      setActiveConsultation(patient);
-    }, 2000);
+
+    // Send targeted call:invite WebSocket message specifically to targetPatientUserId
+    if (wsRef.current && wsRef.current.readyState === 1) {
+      wsRef.current.send(JSON.stringify({
+        type: 'call:invite',
+        targetUserId: targetPatientUserId,
+        payload: {
+          callerName: doctorProfile.fullName,
+          isVideo: true
+        }
+      }));
+    }
+  };
+
+  const handleAcceptIncomingCall = () => {
+    if (wsRef.current && wsRef.current.readyState === 1 && incomingCall?.callerUserId) {
+      wsRef.current.send(JSON.stringify({
+        type: 'call:accept',
+        targetUserId: incomingCall.callerUserId
+      }));
+    }
+    setActiveConsultation({
+      fullName: incomingCall?.callerName || 'Patient',
+      targetUserId: incomingCall?.callerUserId
+    });
+    setIncomingCall(null);
+  };
+
+  const handleDeclineIncomingCall = () => {
+    if (wsRef.current && wsRef.current.readyState === 1 && incomingCall?.callerUserId) {
+      wsRef.current.send(JSON.stringify({
+        type: 'call:decline',
+        targetUserId: incomingCall.callerUserId
+      }));
+    }
+    setIncomingCall(null);
   };
 
   const handleCreatePrescription = async (e) => {
     e.preventDefault();
-    if (!activeConsultation?.id) return alert('No active consultation selected to issue prescription.');
+    if (!activeConsultation?.id) return alert('No active consultation selected.');
 
     try {
       const res = await fetch('/api/consultations/prescription', {
@@ -102,23 +184,31 @@ export default function DoctorDashboard({ user, token, socket }) {
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-12 w-full px-2 sm:px-4">
       
-      {/* Incoming Call Modal */}
+      {/* Incoming Call Ringing Modal from Patient */}
       <IncomingCallModal
         incomingCall={incomingCall}
-        onAccept={() => { setIncomingCall(null); setActiveConsultation({ fullName: incomingCall.callerName }); }}
-        onDecline={() => setIncomingCall(null)}
+        onAccept={handleAcceptIncomingCall}
+        onDecline={handleDeclineIncomingCall}
       />
 
       {/* Ringing Overlay when Doctor calls Patient */}
       {isCallingPatient && (
-        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4 select-none">
           <div className="bg-slate-900 border-2 border-cyan-500 rounded-3xl p-6 text-center space-y-4 max-w-sm w-full shadow-2xl">
             <div className="w-16 h-16 rounded-full bg-cyan-500/20 text-cyan-300 border-2 border-cyan-400 flex items-center justify-center mx-auto animate-ping">
               <PhoneCall className="w-8 h-8" />
             </div>
-            <h3 className="text-xl font-black text-slate-100">Calling {callingPatientName}...</h3>
-            <p className="text-xs text-slate-400 animate-pulse">Ringing... Waiting for Patient to Accept</p>
-            <button onClick={() => setIsCallingPatient(false)} className="px-6 py-2 bg-rose-600 text-white rounded-xl text-xs font-bold">
+            <h3 className="text-xl font-black text-slate-100">Ringing {callingPatientName}...</h3>
+            <p className="text-xs text-slate-400 animate-pulse">Call invitation sent to patient's phone. Waiting for Patient to Accept...</p>
+            <button
+              onClick={() => {
+                setIsCallingPatient(false);
+                if (wsRef.current && wsRef.current.readyState === 1 && callingTargetUserId) {
+                  wsRef.current.send(JSON.stringify({ type: 'call:decline', targetUserId: callingTargetUserId }));
+                }
+              }}
+              className="px-6 py-2 bg-rose-600 hover:bg-rose-500 text-white font-black rounded-xl text-xs"
+            >
               Cancel Call
             </button>
           </div>
@@ -139,7 +229,7 @@ export default function DoctorDashboard({ user, token, socket }) {
               </span>
             </h2>
             <p className="text-xs text-slate-400 font-medium">
-              Specialty: {doctorProfile.specialty} • License: {doctorProfile.licenseNo} • Row-Level Private Security
+              Specialty: {doctorProfile.specialty} • License: {doctorProfile.licenseNo} • Targeted 1-to-1 WebSockets
             </p>
           </div>
         </div>
@@ -150,7 +240,7 @@ export default function DoctorDashboard({ user, token, socket }) {
         </div>
       </div>
 
-      {/* CONSULTATION APPROVAL MAILBOX SECTION (ROW-LEVEL SECURITY ENFORCED) */}
+      {/* CONSULTATION APPROVAL MAILBOX SECTION */}
       <div className={`bg-slate-900/90 border rounded-3xl p-5 shadow-2xl space-y-4 transition-all duration-300 ${
         pendingRequests.length > 0 ? 'border-amber-500/80 shadow-[0_0_30px_rgba(245,158,11,0.2)]' : 'border-slate-800'
       }`}>
@@ -218,10 +308,10 @@ export default function DoctorDashboard({ user, token, socket }) {
                   </div>
                 ) : req.status === 'ACCEPTED' ? (
                   <button
-                    onClick={() => handleStartConsultationCall(req.patient)}
-                    className="w-full py-2 bg-gradient-to-r from-teal-500 to-cyan-500 text-slate-950 font-black rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-md shadow-teal-500/20"
+                    onClick={() => handleInitiateCallToPatient(req)}
+                    className="w-full py-2 bg-gradient-to-r from-teal-500 to-cyan-500 text-slate-950 font-black rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-md shadow-teal-500/20 transform hover:scale-[1.02]"
                   >
-                    <Video className="w-4 h-4 fill-current" /> Call Patient Now
+                    <Video className="w-4 h-4 fill-current" /> Call Patient Phone Now
                   </button>
                 ) : null}
               </div>
