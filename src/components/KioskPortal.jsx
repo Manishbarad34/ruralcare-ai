@@ -5,16 +5,22 @@ import AITriageChat from './AITriageChat.jsx';
 import VideoConsultation from './VideoConsultation.jsx';
 import VendingMachineDispenser from './VendingMachineDispenser.jsx';
 import DoctorReviewChat from './DoctorReviewChat.jsx';
+import IncomingCallModal from './IncomingCallModal.jsx';
 import { db, syncServerStore } from '../../db/database.js';
-import { UserCheck, Droplet, Bot, Video, PackageCheck, Star, ArrowRight, CheckCircle2, Send, Zap, AlertCircle, Inbox, X } from 'lucide-react';
+import { UserCheck, Droplet, Bot, Video, PackageCheck, Star, ArrowRight, CheckCircle2, Send, Zap, AlertCircle, Inbox, X, PhoneCall, PhoneOff } from 'lucide-react';
 
 export default function KioskPortal({ villagers = [], doctors = [], inventory = [], aiProvider, isOffline, loggedInUser }) {
   const [currentStep, setCurrentStep] = useState(1);
-  const [identifiedVillager, setIdentifiedVillager] = useState(loggedInUser || villagers[0] || { id: 'VILL-101', name: 'Rahul Kumar', village: 'Rampur' });
+  const [identifiedVillager, setIdentifiedVillager] = useState(loggedInUser || villagers[0] || { id: 'VILL-101', name: 'Rahul Barad', village: 'Rampur' });
   const [bloodReport, setBloodReport] = useState(null);
   const [triageDetails, setTriageDetails] = useState(null);
   const [assignedDoctor, setAssignedDoctor] = useState(doctors[0] || { id: 'DOC-01', name: 'Dr. Manish Barad', specialty: 'General Physician' });
   const [approvalRequest, setApprovalRequest] = useState(null);
+
+  // Call Signaling State
+  const [isCallingDoctor, setIsCallingDoctor] = useState(false);
+  const [incomingCallFromDoctor, setIncomingCallFromDoctor] = useState(null);
+  const [wsInstance, setWsInstance] = useState(null);
 
   useEffect(() => {
     if (loggedInUser) {
@@ -31,6 +37,39 @@ export default function KioskPortal({ villagers = [], doctors = [], inventory = 
       }
     }
   }, [doctors]);
+
+  // Global WebSocket Listener for Call Ringing & Instant Sync
+  useEffect(() => {
+    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsHost = window.location.host || 'localhost:5000';
+    let ws;
+    try {
+      ws = new WebSocket(`${wsProtocol}//${wsHost}`);
+      setWsInstance(ws);
+
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          
+          if (data.type === 'call-ring' && data.callerRole === 'doctor') {
+            console.log('📹 Incoming Call Ring from Doctor:', data.callerName);
+            setIncomingCallFromDoctor(data);
+          } else if (data.type === 'call-accept' && data.callerRole === 'doctor') {
+            setIsCallingDoctor(false);
+            setCurrentStep(4);
+          } else if (data.type === 'call-decline') {
+            setIsCallingDoctor(false);
+            setIncomingCallFromDoctor(null);
+            alert('Call was declined by doctor.');
+          }
+        } catch (e) {}
+      };
+    } catch (e) {}
+
+    return () => {
+      if (ws) ws.close();
+    };
+  }, []);
 
   // Real-time 500ms Auto-Poll for Patient Approval Mailbox Status
   useEffect(() => {
@@ -67,7 +106,7 @@ export default function KioskPortal({ villagers = [], doctors = [], inventory = 
   };
 
   const handleSendDoctorApprovalRequest = (doc) => {
-    const patientObj = identifiedVillager || { id: `VILL-${Math.floor(1000 + Math.random() * 9000)}`, name: 'Rahul Kumar (Patient)', village: 'Rampur' };
+    const patientObj = identifiedVillager || { id: `VILL-${Math.floor(1000 + Math.random() * 9000)}`, name: 'Rahul Barad', village: 'Rampur' };
     const doctorObj = doc || assignedDoctor || { id: 'DOC-01', name: 'Dr. Manish Barad', specialty: 'General Physician' };
 
     setAssignedDoctor(doctorObj);
@@ -83,34 +122,50 @@ export default function KioskPortal({ villagers = [], doctors = [], inventory = 
 
     setApprovalRequest(newReq);
 
-    // Instant WebSocket trigger
-    try {
-      const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const wsHost = window.location.host || 'localhost:5000';
-      const ws = new WebSocket(`${wsProtocol}//${wsHost}`);
-      ws.onopen = () => {
-        ws.send(JSON.stringify({ type: 'data-update' }));
-        setTimeout(() => ws.close(), 300);
-      };
-    } catch (e) {}
+    if (wsInstance && wsInstance.readyState === 1) {
+      wsInstance.send(JSON.stringify({ type: 'data-update' }));
+    }
   };
 
   const startDirectVideoCall = (doc) => {
-    const patientObj = identifiedVillager || { id: `VILL-${Math.floor(1000 + Math.random() * 9000)}`, name: 'Rahul Kumar (Patient)', village: 'Rampur' };
+    const patientObj = identifiedVillager || { id: `VILL-${Math.floor(1000 + Math.random() * 9000)}`, name: 'Rahul Barad', village: 'Rampur' };
     const doctorObj = doc || assignedDoctor || { id: 'DOC-01', name: 'Dr. Manish Barad', specialty: 'General Physician' };
 
     setAssignedDoctor(doctorObj);
+    setIsCallingDoctor(true);
 
-    db.addToQueue({
-      queueId: `Q-${Math.floor(100 + Math.random() * 900)}`,
-      villagerId: patientObj.id,
-      villagerName: patientObj.name,
-      symptoms: 'Direct Emergency Call Request',
-      emergencyLevel: 'HIGH',
-      assignedDoctor: doctorObj.name,
-      joinedAt: new Date().toISOString()
-    });
+    if (wsInstance && wsInstance.readyState === 1) {
+      wsInstance.send(JSON.stringify({
+        type: 'call-ring',
+        callerRole: 'patient',
+        callerName: patientObj.name,
+        calleeRole: 'doctor',
+        calleeName: doctorObj.name,
+        isVideo: true
+      }));
+    }
+  };
+
+  const handleAcceptIncomingDoctorCall = () => {
+    if (wsInstance && wsInstance.readyState === 1) {
+      wsInstance.send(JSON.stringify({
+        type: 'call-accept',
+        callerRole: 'patient',
+        callerName: identifiedVillager?.name || 'Patient'
+      }));
+    }
+    setIncomingCallFromDoctor(null);
     setCurrentStep(4);
+  };
+
+  const handleDeclineIncomingDoctorCall = () => {
+    if (wsInstance && wsInstance.readyState === 1) {
+      wsInstance.send(JSON.stringify({
+        type: 'call-decline',
+        callerRole: 'patient'
+      }));
+    }
+    setIncomingCallFromDoctor(null);
   };
 
   const handleTriageComplete = (triageData) => {
@@ -120,6 +175,32 @@ export default function KioskPortal({ villagers = [], doctors = [], inventory = 
   return (
     <div className="space-y-4 sm:space-y-6 max-w-7xl mx-auto pb-12 w-full overflow-x-hidden px-2 sm:px-4">
       
+      {/* Incoming Call Ringing Modal from Doctor */}
+      <IncomingCallModal
+        incomingCall={incomingCallFromDoctor}
+        onAccept={handleAcceptIncomingDoctorCall}
+        onDecline={handleDeclineIncomingDoctorCall}
+      />
+
+      {/* Ringing Overlay when Patient calls Doctor */}
+      {isCallingDoctor && (
+        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-slate-900 border-2 border-teal-500 rounded-3xl p-6 text-center space-y-4 max-w-sm w-full shadow-2xl">
+            <div className="w-16 h-16 rounded-full bg-teal-500/20 text-teal-300 border-2 border-teal-400 flex items-center justify-center mx-auto animate-ping">
+              <PhoneCall className="w-8 h-8" />
+            </div>
+            <h3 className="text-xl font-black text-slate-100">Calling {assignedDoctor?.name || 'Doctor'}...</h3>
+            <p className="text-xs text-slate-400 animate-pulse">Ringing... Waiting for Doctor to Accept Call</p>
+            <button
+              onClick={() => setIsCallingDoctor(false)}
+              className="px-6 py-2.5 bg-rose-600 hover:bg-rose-500 text-white font-black rounded-xl text-xs"
+            >
+              Cancel Call
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Available Registered Online Doctors Banner */}
       <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-4 shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
@@ -152,14 +233,14 @@ export default function KioskPortal({ villagers = [], doctors = [], inventory = 
               <div className="flex items-center gap-2 w-full sm:w-auto">
                 <button
                   onClick={() => startDirectVideoCall(d)}
-                  className="flex-1 sm:flex-initial px-3 py-1.5 bg-gradient-to-r from-teal-500 to-cyan-500 text-slate-950 font-black rounded-xl text-[11px] shadow-md shadow-teal-500/20 flex items-center justify-center gap-1 hover:opacity-90 transition transform hover:scale-105"
+                  className="flex-1 sm:flex-initial px-3.5 py-2 bg-gradient-to-r from-teal-500 to-cyan-500 text-slate-950 font-black rounded-xl text-[11px] shadow-md shadow-teal-500/30 flex items-center justify-center gap-1 hover:opacity-90 transition transform hover:scale-105"
                 >
                   <Zap className="w-3.5 h-3.5 fill-current" /> Direct Call
                 </button>
 
                 <button
                   onClick={() => handleSendDoctorApprovalRequest(d)}
-                  className="flex-1 sm:flex-initial px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-teal-300 font-black rounded-xl text-[11px] border border-slate-700 flex items-center justify-center gap-1 transition shadow-lg hover:border-teal-400"
+                  className="flex-1 sm:flex-initial px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-teal-300 font-black rounded-xl text-[11px] border border-slate-700 flex items-center justify-center gap-1 transition shadow-lg hover:border-teal-400"
                 >
                   <Send className="w-3.5 h-3.5" /> Request Approval
                 </button>

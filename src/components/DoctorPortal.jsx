@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import VideoConsultation from './VideoConsultation.jsx';
 import DoctorChatModal from './DoctorChatModal.jsx';
+import IncomingCallModal from './IncomingCallModal.jsx';
 import { db, syncServerStore } from '../../db/database.js';
-import { Stethoscope, User, Video, MessageSquare, CheckCircle2, Clock, Droplet, PackageCheck, AlertTriangle, ShieldCheck, Heart, Sparkles, Inbox, RefreshCw, X, ChevronDown, Check, BellRing, Pill, Plus, Minus, Send, Zap } from 'lucide-react';
+import { Stethoscope, User, Video, MessageSquare, CheckCircle2, Clock, Droplet, PackageCheck, AlertTriangle, ShieldCheck, Heart, Sparkles, Inbox, RefreshCw, X, ChevronDown, Check, BellRing, Pill, Plus, Minus, Send, Zap, PhoneCall, PhoneOff } from 'lucide-react';
 
 export default function DoctorPortal({ doctors = [], queue = [], inventory = [], onDispenseMedicine, loggedInDoctor }) {
   const [selectedDoctor, setSelectedDoctor] = useState(loggedInDoctor || doctors[0] || { id: 'DOC-01', name: 'Dr. Manish Barad', specialty: 'General Physician' });
@@ -12,8 +13,14 @@ export default function DoctorPortal({ doctors = [], queue = [], inventory = [],
   const [mailboxRequests, setMailboxRequests] = useState([]);
   
   // Dosage & Prescription State
-  const [selectedDosage, setSelectedDosage] = useState({}); // { medId: quantity }
+  const [selectedDosage, setSelectedDosage] = useState({});
   const [dispenseSuccessMsg, setDispenseSuccessMsg] = useState(null);
+
+  // Call Signaling State
+  const [isCallingPatient, setIsCallingPatient] = useState(false);
+  const [callingPatientName, setCallingPatientName] = useState('');
+  const [incomingCallFromPatient, setIncomingCallFromPatient] = useState(null);
+  const [wsInstance, setWsInstance] = useState(null);
 
   useEffect(() => {
     if (loggedInDoctor) {
@@ -22,6 +29,39 @@ export default function DoctorPortal({ doctors = [], queue = [], inventory = [],
       setSelectedDoctor(doctors[0]);
     }
   }, [loggedInDoctor, doctors]);
+
+  // Global WebSocket Listener for Call Ringing & Instant Sync
+  useEffect(() => {
+    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsHost = window.location.host || 'localhost:5000';
+    let ws;
+    try {
+      ws = new WebSocket(`${wsProtocol}//${wsHost}`);
+      setWsInstance(ws);
+
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          
+          if (data.type === 'call-ring' && data.callerRole === 'patient') {
+            console.log('📹 Incoming Call Ring from Patient:', data.callerName);
+            setIncomingCallFromPatient(data);
+          } else if (data.type === 'call-accept' && data.callerRole === 'patient') {
+            setIsCallingPatient(false);
+            setActiveVideoCall({ villagerName: callingPatientName || 'Patient' });
+          } else if (data.type === 'call-decline') {
+            setIsCallingPatient(false);
+            setIncomingCallFromPatient(null);
+            alert('Call was declined by patient.');
+          }
+        } catch (e) {}
+      };
+    } catch (e) {}
+
+    return () => {
+      if (ws) ws.close();
+    };
+  }, [callingPatientName]);
 
   // Real-time 500ms Instant Auto-Poll for Consultation Approval Mailbox
   useEffect(() => {
@@ -41,20 +81,50 @@ export default function DoctorPortal({ doctors = [], queue = [], inventory = [],
     const updated = db.getApprovalMailbox();
     setMailboxRequests([...updated]);
 
-    try {
-      const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const wsHost = window.location.host || 'localhost:5000';
-      const ws = new WebSocket(`${wsProtocol}//${wsHost}`);
-      ws.onopen = () => {
-        ws.send(JSON.stringify({ type: 'data-update' }));
-        setTimeout(() => ws.close(), 300);
-      };
-    } catch (e) {}
+    if (wsInstance && wsInstance.readyState === 1) {
+      wsInstance.send(JSON.stringify({ type: 'data-update' }));
+    }
   };
 
   const handleStartConsultation = (patient) => {
+    const pName = patient.villagerName || 'Patient';
     setActiveConsultation(patient);
-    setActiveVideoCall(patient);
+    setCallingPatientName(pName);
+    setIsCallingPatient(true);
+
+    if (wsInstance && wsInstance.readyState === 1) {
+      wsInstance.send(JSON.stringify({
+        type: 'call-ring',
+        callerRole: 'doctor',
+        callerName: selectedDoctor?.name || 'Dr. Manish Barad',
+        calleeRole: 'patient',
+        calleeName: pName,
+        isVideo: true
+      }));
+    }
+  };
+
+  const handleAcceptIncomingPatientCall = () => {
+    const pName = incomingCallFromPatient?.callerName || 'Patient';
+    if (wsInstance && wsInstance.readyState === 1) {
+      wsInstance.send(JSON.stringify({
+        type: 'call-accept',
+        callerRole: 'doctor',
+        callerName: selectedDoctor?.name || 'Dr. Manish Barad'
+      }));
+    }
+    setIncomingCallFromPatient(null);
+    setActiveVideoCall({ villagerName: pName });
+  };
+
+  const handleDeclineIncomingPatientCall = () => {
+    if (wsInstance && wsInstance.readyState === 1) {
+      wsInstance.send(JSON.stringify({
+        type: 'call-decline',
+        callerRole: 'doctor'
+      }));
+    }
+    setIncomingCallFromPatient(null);
   };
 
   const handleQuantityChange = (medId, delta) => {
@@ -78,21 +148,37 @@ export default function DoctorPortal({ doctors = [], queue = [], inventory = [],
 
   const pendingRequests = mailboxRequests.filter(m => m.status === 'PENDING');
 
-  // Common Disease Quick Dispense Categories
-  const categories = [
-    { title: '🌡️ Fever / Cold / Flu', slot: 'Slot A1', medId: 'MED-1' },
-    { title: '🧫 Bacterial Infection', slot: 'Slot A2 & B1', medId: 'MED-2' },
-    { title: '🤧 Allergy / Cough', slot: 'Slot B2', medId: 'MED-4' },
-    { title: '💧 Dehydration / Diarrhea', slot: 'Slot C1', medId: 'MED-5' },
-    { title: '🩸 Diabetes / Blood Sugar', slot: 'Slot C2', medId: 'MED-6' },
-  ];
-
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-12 w-full">
       
+      {/* Incoming Call Ringing Modal from Patient */}
+      <IncomingCallModal
+        incomingCall={incomingCallFromPatient}
+        onAccept={handleAcceptIncomingPatientCall}
+        onDecline={handleDeclineIncomingPatientCall}
+      />
+
+      {/* Ringing Overlay when Doctor calls Patient */}
+      {isCallingPatient && (
+        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-slate-900 border-2 border-cyan-500 rounded-3xl p-6 text-center space-y-4 max-w-sm w-full shadow-2xl">
+            <div className="w-16 h-16 rounded-full bg-cyan-500/20 text-cyan-300 border-2 border-cyan-400 flex items-center justify-center mx-auto animate-ping">
+              <PhoneCall className="w-8 h-8" />
+            </div>
+            <h3 className="text-xl font-black text-slate-100">Calling {callingPatientName || 'Patient'}...</h3>
+            <p className="text-xs text-slate-400 animate-pulse">Ringing... Waiting for Patient to Accept Call</p>
+            <button
+              onClick={() => setIsCallingPatient(false)}
+              className="px-6 py-2.5 bg-rose-600 hover:bg-rose-500 text-white font-black rounded-xl text-xs"
+            >
+              Cancel Call
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Top Doctor Selection & Active Real Doctor Header */}
       <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-4 sm:p-6 shadow-2xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-        
         <div className="flex items-center gap-3">
           <div className="p-3 bg-gradient-to-tr from-cyan-500 to-teal-500 rounded-2xl text-slate-950 shadow-lg shadow-cyan-500/20 font-black">
             <Stethoscope className="w-6 h-6 stroke-[2.5]" />
@@ -110,12 +196,10 @@ export default function DoctorPortal({ doctors = [], queue = [], inventory = [],
           </div>
         </div>
 
-        {/* Real Active Doctor Status Badge */}
         <div className="flex items-center gap-2 bg-slate-950 px-4 py-2 rounded-2xl border border-slate-800 text-xs text-cyan-300 font-bold">
           <ShieldCheck className="w-4 h-4 text-emerald-400" />
           <span>Real MCI Verified Doctor Session</span>
         </div>
-
       </div>
 
       {/* Consultation Approval Mailbox Section */}
@@ -212,7 +296,7 @@ export default function DoctorPortal({ doctors = [], queue = [], inventory = [],
                     onClick={() => handleStartConsultation({ queueId: req.requestId, villagerId: req.villagerId, villagerName: req.villagerName })}
                     className="w-full py-2.5 bg-gradient-to-r from-teal-500 to-cyan-500 text-slate-950 font-black rounded-xl text-xs transition shadow-md shadow-teal-500/20 flex items-center justify-center gap-1.5 transform hover:scale-[1.02]"
                   >
-                    <Video className="w-4 h-4 fill-current" /> Start Video Consultation
+                    <Video className="w-4 h-4 fill-current" /> Call Patient Now
                   </button>
                 ) : null}
               </div>
@@ -254,7 +338,6 @@ export default function DoctorPortal({ doctors = [], queue = [], inventory = [],
 
       {/* Real AI Prescription & Dosage Selection Section */}
       <div className="bg-slate-900/90 border border-teal-500/40 rounded-3xl p-5 shadow-2xl space-y-4">
-        
         <div className="flex items-center justify-between border-b border-slate-800 pb-3">
           <div className="flex items-center gap-2">
             <div className="p-2 bg-teal-950 text-teal-300 rounded-xl border border-teal-700">
@@ -299,7 +382,6 @@ export default function DoctorPortal({ doctors = [], queue = [], inventory = [],
                   <p className="text-[10px] text-slate-400 italic mt-1 font-mono">{med.recommendedDosage}</p>
                 </div>
 
-                {/* Dosage Quantity Selector (1 Tab, 2 Tabs, 3 Strips, etc.) */}
                 <div className="pt-2 border-t border-slate-900 space-y-2">
                   <div className="flex items-center justify-between text-xs">
                     <span className="text-slate-400 font-bold">Prescribe Quantity:</span>
@@ -331,7 +413,6 @@ export default function DoctorPortal({ doctors = [], queue = [], inventory = [],
             );
           })}
         </div>
-
       </div>
 
       <DoctorChatModal

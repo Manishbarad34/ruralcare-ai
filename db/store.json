@@ -1,16 +1,181 @@
 {
-  "villagers": [],
-  "doctors": [],
-  "kioskInventory": [
-    { "id": "MED-1", "name": "Paracetamol 500mg", "slot": "Slot A1", "category": "Fever / Cold / Flu", "totalCapacity": 100, "currentStock": 85, "unit": "strips", "recommendedDosage": "1 Tab twice daily after meals (3 Days)", "autoOrderTriggered": false },
-    { "id": "MED-2", "name": "Azithromycin 500mg", "slot": "Slot A2", "category": "Bacterial Infection", "totalCapacity": 50, "currentStock": 30, "unit": "strips", "recommendedDosage": "1 Tab once daily (3 Days)", "autoOrderTriggered": false },
-    { "id": "MED-3", "name": "Amoxicillin 250mg", "slot": "Slot B1", "category": "Bacterial Infection", "totalCapacity": 60, "currentStock": 42, "unit": "strips", "recommendedDosage": "1 Tab thrice daily (5 Days)", "autoOrderTriggered": false },
-    { "id": "MED-4", "name": "Cetirizine 10mg", "slot": "Slot B2", "category": "Allergy / Cough / Cold", "totalCapacity": 80, "currentStock": 54, "unit": "strips", "recommendedDosage": "1 Tab at bedtime (5 Days)", "autoOrderTriggered": false },
-    { "id": "MED-5", "name": "ORS Packets (Electral)", "slot": "Slot C1", "category": "Dehydration / Diarrhea", "totalCapacity": 150, "currentStock": 110, "unit": "sachets", "recommendedDosage": "1 Sachet in 1L clean water daily", "autoOrderTriggered": false },
-    { "id": "MED-6", "name": "Metformin 500mg", "slot": "Slot C2", "category": "Diabetes / High Blood Sugar", "totalCapacity": 70, "currentStock": 50, "unit": "strips", "recommendedDosage": "1 Tab daily with breakfast", "autoOrderTriggered": false }
+  "villagers": [
+    {
+      "id": "VILL-1428",
+      "name": "vaibhav",
+      "age": 28,
+      "gender": "Male",
+      "village": "Rampur Gram Panchayat",
+      "phone": "vaibhav",
+      "bloodGroup": "O+",
+      "allergies": [
+        "None"
+      ],
+      "password": "123456",
+      "registered": true,
+      "createdAt": "2026-08-09T08:58:43.863Z",
+      "medicalHistory": []
+    },
+    {
+      "id": "VILL-3371",
+      "name": "Rahul Kumar",
+      "age": 28,
+      "gender": "Male",
+      "village": "Rampur",
+      "phone": "9876543210",
+      "bloodGroup": "O+",
+      "allergies": [
+        "None"
+      ],
+      "password": "123456",
+      "registered": true,
+      "createdAt": "2026-08-09T08:58:14.305Z",
+      "medicalHistory": []
+    },
+    {
+      "id": "VILL-7819",
+      "name": "Rahul Kumar",
+      "age": 28,
+      "gender": "Male",
+      "village": "Rampur",
+      "phone": "9876543210",
+      "bloodGroup": "O+",
+      "allergies": [
+        "None"
+      ],
+      "password": "123456",
+      "registered": true,
+      "createdAt": "2026-08-09T08:53:54.137Z",
+      "medicalHistory": []
+    }
   ],
-  "consultationQueue": [],
-  "approvalMailbox": [],
+  "doctors": [
+    {
+      "id": "DOC-5532",
+      "name": "Dr. Manish Barad",
+      "licenseNo": "MCI-9901",
+      "specialty": "General Physician",
+      "experience": "5 Yrs",
+      "password": "doctor123",
+      "status": "Online",
+      "currentLoad": 0,
+      "registered": true
+    }
+  ],
+  "kioskInventory": [
+    {
+      "id": "MED-1",
+      "name": "Paracetamol 500mg",
+      "slot": "Slot A1",
+      "category": "Fever / Cold / Flu",
+      "totalCapacity": 100,
+      "currentStock": 85,
+      "unit": "strips",
+      "recommendedDosage": "1 Tab twice daily after meals (3 Days)",
+      "autoOrderTriggered": false
+    },
+    {
+      "id": "MED-2",
+      "name": "Azithromycin 500mg",
+      "slot": "Slot A2",
+      "category": "Bacterial Infection",
+      "totalCapacity": 50,
+      "currentStock": 30,
+      "unit": "strips",
+      "recommendedDosage": "1 Tab once daily (3 Days)",
+      "autoOrderTriggered": false
+    },
+    {
+      "id": "MED-3",
+      "name": "Amoxicillin 250mg",
+      "slot": "Slot B1",
+      "category": "Bacterial Infection",
+      "totalCapacity": 60,
+      "currentStock": 42,
+      "unit": "strips",
+      "recommendedDosage": "1 Tab thrice daily (5 Days)",
+      "autoOrderTriggered": false
+    },
+    {
+      "id": "MED-4",
+      "name": "Cetirizine 10mg",
+      "slot": "Slot B2",
+      "category": "Allergy / Cough / Cold",
+      "totalCapacity": 80,
+      "currentStock": 54,
+      "unit": "strips",
+      "recommendedDosage": "1 Tab at bedtime (5 Days)",
+      "autoOrderTriggered": false
+    },
+    {
+      "id": "MED-5",
+      "name": "ORS Packets (Electral)",
+      "slot": "Slot C1",
+      "category": "Dehydration / Diarrhea",
+      "totalCapacity": 150,
+      "currentStock": 110,
+      "unit": "sachets",
+      "recommendedDosage": "1 Sachet in 1L clean water daily",
+      "autoOrderTriggered": false
+    },
+    {
+      "id": "MED-6",
+      "name": "Metformin 500mg",
+      "slot": "Slot C2",
+      "category": "Diabetes / High Blood Sugar",
+      "totalCapacity": 70,
+      "currentStock": 50,
+      "unit": "strips",
+      "recommendedDosage": "1 Tab daily with breakfast",
+      "autoOrderTriggered": false
+    }
+  ],
+  "consultationQueue": [
+    {
+      "queueId": "Q-635",
+      "villagerId": "VILL-7161",
+      "villagerName": "Rahul Kumar",
+      "symptoms": "General Consultation Request",
+      "emergencyLevel": "MEDIUM",
+      "assignedDoctor": "Dr. Manish Barad",
+      "joinedAt": "2026-08-09T08:54:15.345Z"
+    },
+    {
+      "queueId": "Q-828",
+      "villagerId": "VILL-7089",
+      "villagerName": "vaibhav",
+      "symptoms": "General Consultation Request",
+      "emergencyLevel": "MEDIUM",
+      "assignedDoctor": "Dr. Manish Barad",
+      "joinedAt": "2026-08-09T08:59:24.559Z"
+    }
+  ],
+  "approvalMailbox": [
+    {
+      "requestId": "REQ-9842",
+      "villagerId": "VILL-7089",
+      "villagerName": "vaibhav",
+      "doctorId": "DOC-5532",
+      "doctorName": "Dr. Manish Barad",
+      "symptoms": "General Consultation Request",
+      "emergencyLevel": "MEDIUM",
+      "suggestedMeds": [],
+      "status": "APPROVED",
+      "requestedAt": "02:29 pm"
+    },
+    {
+      "requestId": "REQ-6090",
+      "villagerId": "VILL-7161",
+      "villagerName": "Rahul Kumar",
+      "doctorId": "DOC-5532",
+      "doctorName": "Dr. Manish Barad",
+      "symptoms": "General Consultation Request",
+      "emergencyLevel": "MEDIUM",
+      "suggestedMeds": [],
+      "status": "APPROVED",
+      "requestedAt": "02:24 pm"
+    }
+  ],
   "reorderRequests": [],
   "reviews": []
 }
