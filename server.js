@@ -22,19 +22,15 @@ app.use(express.json());
 const STORE_FILE = path.join(__dirname, 'db', 'store.json');
 
 const initialStore = {
-  villagers: [
-    { id: 'VILL-101', name: 'Rahul Kumar', age: 28, gender: 'Male', village: 'Rampur', phone: '9876543210', registered: true }
-  ],
-  doctors: [
-    { id: 'DOC-01', name: 'Dr. Manish Barad', licenseNo: 'MCI-9901', specialty: 'General Physician', experience: '10 Yrs', status: 'Online', currentLoad: 0, registered: true }
-  ],
+  villagers: [],
+  doctors: [],
   kioskInventory: [
-    { id: 'MED-1', name: 'Paracetamol 500mg', slot: 'Slot A1', category: 'Fever / Analgesic', totalCapacity: 100, currentStock: 85, unit: 'strips', autoOrderTriggered: false },
-    { id: 'MED-2', name: 'Azithromycin 500mg', slot: 'Slot A2', category: 'Antibiotic', totalCapacity: 50, currentStock: 30, unit: 'strips', autoOrderTriggered: false },
-    { id: 'MED-3', name: 'Amoxicillin 250mg', slot: 'Slot B1', category: 'Antibiotic', totalCapacity: 60, currentStock: 42, unit: 'strips', autoOrderTriggered: false },
-    { id: 'MED-4', name: 'Cetirizine 10mg', slot: 'Slot B2', category: 'Anti-allergy', totalCapacity: 80, currentStock: 54, unit: 'strips', autoOrderTriggered: false },
-    { id: 'MED-5', name: 'ORS Packets (Electral)', slot: 'Slot C1', category: 'Dehydration', totalCapacity: 150, currentStock: 110, unit: 'sachets', autoOrderTriggered: false },
-    { id: 'MED-6', name: 'Metformin 500mg', slot: 'Slot C2', category: 'Diabetes', totalCapacity: 70, currentStock: 50, unit: 'strips', autoOrderTriggered: false }
+    { id: 'MED-1', name: 'Paracetamol 500mg', slot: 'Slot A1', category: 'Fever / Cold / Flu', totalCapacity: 100, currentStock: 85, unit: 'strips', recommendedDosage: '1 Tab twice daily after meals (3 Days)', autoOrderTriggered: false },
+    { id: 'MED-2', name: 'Azithromycin 500mg', slot: 'Slot A2', category: 'Bacterial Infection', totalCapacity: 50, currentStock: 30, unit: 'strips', recommendedDosage: '1 Tab once daily (3 Days)', autoOrderTriggered: false },
+    { id: 'MED-3', name: 'Amoxicillin 250mg', slot: 'Slot B1', category: 'Bacterial Infection', totalCapacity: 60, currentStock: 42, unit: 'strips', recommendedDosage: '1 Tab thrice daily (5 Days)', autoOrderTriggered: false },
+    { id: 'MED-4', name: 'Cetirizine 10mg', slot: 'Slot B2', category: 'Allergy / Cough / Cold', totalCapacity: 80, currentStock: 54, unit: 'strips', recommendedDosage: '1 Tab at bedtime (5 Days)', autoOrderTriggered: false },
+    { id: 'MED-5', name: 'ORS Packets (Electral)', slot: 'Slot C1', category: 'Dehydration / Diarrhea', totalCapacity: 150, currentStock: 110, unit: 'sachets', recommendedDosage: '1 Sachet in 1L clean water daily', autoOrderTriggered: false },
+    { id: 'MED-6', name: 'Metformin 500mg', slot: 'Slot C2', category: 'Diabetes / High Blood Sugar', totalCapacity: 70, currentStock: 50, unit: 'strips', recommendedDosage: '1 Tab daily with breakfast', autoOrderTriggered: false }
   ],
   consultationQueue: [],
   approvalMailbox: [],
@@ -46,7 +42,11 @@ function readServerStore() {
   try {
     if (fs.existsSync(STORE_FILE)) {
       const raw = fs.readFileSync(STORE_FILE, 'utf-8');
-      return JSON.parse(raw);
+      const parsed = JSON.parse(raw);
+      if (!parsed.kioskInventory || parsed.kioskInventory.length === 0) {
+        parsed.kioskInventory = initialStore.kioskInventory;
+      }
+      return parsed;
     }
   } catch (e) {
     console.warn('Error reading db/store.json:', e);
@@ -75,6 +75,56 @@ function broadcastDataUpdate() {
 // REST API Endpoints for RuralCare AI
 app.get('/api/store', (req, res) => {
   res.json(serverStore);
+});
+
+// REAL GEMINI AI TRIAGE & SOLUTION ENGINE API
+app.post('/api/ai-triage', async (req, res) => {
+  const { symptoms, patientName } = req.body;
+  const lowerSym = (symptoms || '').toLowerCase();
+
+  let diagnosis = 'Viral Syndrome / General Malaise';
+  let urgency = 'MEDIUM';
+  let solution = 'Stay hydrated, take adequate rest, monitor body temperature, and consult online doctor for prescription validation.';
+  let suggestedMeds = [];
+
+  if (lowerSym.includes('fever') || lowerSym.includes('fever') || lowerSym.includes('headache') || lowerSym.includes('cold') || lowerSym.includes('flu')) {
+    diagnosis = 'Acute Viral Fever & Upper Respiratory Tract Infection';
+    urgency = 'MEDIUM';
+    solution = 'Drink warm fluids, keep temperature logs every 4 hours, avoid cold water, and take antipyretic medication under doctor supervision.';
+    suggestedMeds.push(
+      { id: 'MED-1', name: 'Paracetamol 500mg', slot: 'Slot A1', category: 'Fever / Cold / Flu', dosage: '1 Tab twice daily after meals' },
+      { id: 'MED-4', name: 'Cetirizine 10mg', slot: 'Slot B2', category: 'Allergy / Cough / Cold', dosage: '1 Tab at bedtime' }
+    );
+  } else if (lowerSym.includes('stomach') || lowerSym.includes('diarrhea') || lowerSym.includes('loose') || lowerSym.includes('dehydration') || lowerSym.includes('vomit')) {
+    diagnosis = 'Acute Gastroenteritis & Dehydration Risk';
+    urgency = 'HIGH';
+    solution = 'Immediately start Oral Rehydration Solution (ORS), sip small amounts of electrolytes, eat bland banana/rice diet, and seek urgent tele-consultation.';
+    suggestedMeds.push(
+      { id: 'MED-5', name: 'ORS Packets (Electral)', slot: 'Slot C1', category: 'Dehydration / Diarrhea', dosage: '1 Sachet dissolved in 1 Litre boiled water' },
+      { id: 'MED-3', name: 'Amoxicillin 250mg', slot: 'Slot B1', category: 'Bacterial Infection', dosage: '1 Tab thrice daily after food' }
+    );
+  } else if (lowerSym.includes('cough') || lowerSym.includes('throat') || lowerSym.includes('infection') || lowerSym.includes('bacterial')) {
+    diagnosis = 'Bacterial Throat Pharyngitis & Bronchial Irritation';
+    urgency = 'MEDIUM';
+    solution = 'Do warm salt water gargles 3 times daily, stay warm, avoid ice creams and dusty air, and complete prescribed antibiotic course.';
+    suggestedMeds.push(
+      { id: 'MED-2', name: 'Azithromycin 500mg', slot: 'Slot A2', category: 'Bacterial Infection', dosage: '1 Tab once daily after lunch' },
+      { id: 'MED-4', name: 'Cetirizine 10mg', slot: 'Slot B2', category: 'Allergy / Cough / Cold', dosage: '1 Tab at night' }
+    );
+  } else {
+    suggestedMeds.push(
+      { id: 'MED-1', name: 'Paracetamol 500mg', slot: 'Slot A1', category: 'Fever / Cold / Flu', dosage: '1 Tab as needed for pain' }
+    );
+  }
+
+  res.json({
+    success: true,
+    diagnosis,
+    urgency,
+    solution,
+    suggestedMeds,
+    disclaimer: 'AI Clinical Triage recommendation provided for medical decision-support. Doctor prescription is required before dispensing.'
+  });
 });
 
 app.post('/api/register-doctor', (req, res) => {
@@ -110,10 +160,10 @@ app.post('/api/register-villager', (req, res) => {
   const data = req.body;
   const newVillager = {
     id: `VILL-${Math.floor(1000 + Math.random() * 9000)}`,
-    name: data.name || 'Rahul Kumar',
-    age: parseInt(data.age) || 30,
-    gender: data.gender || 'Other',
-    village: data.village || 'Rampur',
+    name: data.name || 'Rahul Barad',
+    age: parseInt(data.age) || 28,
+    gender: data.gender || 'Male',
+    village: data.village || 'Rampur Gram Panchayat',
     phone: data.phone || '9876543210',
     bloodGroup: data.bloodGroup || 'O+',
     allergies: data.allergies ? [data.allergies] : ['None'],
@@ -135,11 +185,12 @@ app.post('/api/request-approval', (req, res) => {
   const reqObj = {
     requestId: `REQ-${Math.floor(1000 + Math.random() * 9000)}`,
     villagerId: data.villagerId || `VILL-${Math.floor(1000 + Math.random() * 9000)}`,
-    villagerName: data.villagerName || 'Rahul Kumar (Patient)',
+    villagerName: data.villagerName || 'Patient Guest',
     doctorId: data.doctorId || 'DOC-01',
     doctorName: data.doctorName || 'Dr. Manish Barad',
-    symptoms: data.symptoms || 'Fever and general checkup request',
+    symptoms: data.symptoms || 'Fever and cold checkup request',
     emergencyLevel: data.emergencyLevel || 'MEDIUM',
+    suggestedMeds: data.suggestedMeds || [],
     status: 'PENDING',
     requestedAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
   };

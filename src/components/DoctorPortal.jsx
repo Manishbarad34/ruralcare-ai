@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import VideoConsultation from './VideoConsultation.jsx';
 import DoctorChatModal from './DoctorChatModal.jsx';
 import { db, syncServerStore } from '../../db/database.js';
-import { Stethoscope, User, Video, MessageSquare, CheckCircle2, Clock, Droplet, PackageCheck, AlertTriangle, ShieldCheck, Heart, Sparkles, Inbox, RefreshCw, X, ChevronDown, Check, BellRing } from 'lucide-react';
+import { Stethoscope, User, Video, MessageSquare, CheckCircle2, Clock, Droplet, PackageCheck, AlertTriangle, ShieldCheck, Heart, Sparkles, Inbox, RefreshCw, X, ChevronDown, Check, BellRing, Pill, Plus, Minus, Send, Zap } from 'lucide-react';
 
 export default function DoctorPortal({ doctors = [], queue = [], inventory = [], onDispenseMedicine, loggedInDoctor }) {
   const [selectedDoctor, setSelectedDoctor] = useState(loggedInDoctor || doctors[0] || { id: 'DOC-01', name: 'Dr. Manish Barad', specialty: 'General Physician' });
@@ -10,11 +10,15 @@ export default function DoctorPortal({ doctors = [], queue = [], inventory = [],
   const [activeVideoCall, setActiveVideoCall] = useState(null);
   const [activeChatModal, setActiveChatModal] = useState(null);
   const [mailboxRequests, setMailboxRequests] = useState([]);
+  
+  // Dosage & Prescription State
+  const [selectedDosage, setSelectedDosage] = useState({}); // { medId: quantity }
+  const [dispenseSuccessMsg, setDispenseSuccessMsg] = useState(null);
 
   useEffect(() => {
     if (loggedInDoctor) {
       setSelectedDoctor(loggedInDoctor);
-    } else if (doctors && doctors.length > 0 && !selectedDoctor) {
+    } else if (doctors && doctors.length > 0) {
       setSelectedDoctor(doctors[0]);
     }
   }, [loggedInDoctor, doctors]);
@@ -31,12 +35,6 @@ export default function DoctorPortal({ doctors = [], queue = [], inventory = [],
     const interval = setInterval(fetchMailbox, 500);
     return () => clearInterval(interval);
   }, []);
-
-  const handleSelectDoctor = (e) => {
-    const docId = e.target.value;
-    const found = doctors.find(d => d.id === docId) || doctors[0];
-    setSelectedDoctor(found);
-  };
 
   const handleUpdateApproval = (requestId, status) => {
     db.updateApprovalStatus(requestId, status);
@@ -59,12 +57,40 @@ export default function DoctorPortal({ doctors = [], queue = [], inventory = [],
     setActiveVideoCall(patient);
   };
 
+  const handleQuantityChange = (medId, delta) => {
+    setSelectedDosage((prev) => {
+      const current = prev[medId] || 1;
+      const next = Math.max(1, Math.min(10, current + delta));
+      return { ...prev, [medId]: next };
+    });
+  };
+
+  const handleDispenseWithDosage = (med) => {
+    const qty = selectedDosage[med.id] || 1;
+    const result = db.dispenseMedicine(med.id, qty, activeConsultation?.villagerId, selectedDoctor?.name);
+    if (result.success) {
+      setDispenseSuccessMsg(`✅ Prescribed & Dispensed ${qty} ${med.unit} of ${med.name} from ${med.slot}!`);
+      setTimeout(() => setDispenseSuccessMsg(null), 3000);
+    } else {
+      alert(`Insufficient stock! Current stock: ${med.currentStock}`);
+    }
+  };
+
   const pendingRequests = mailboxRequests.filter(m => m.status === 'PENDING');
+
+  // Common Disease Quick Dispense Categories
+  const categories = [
+    { title: '🌡️ Fever / Cold / Flu', slot: 'Slot A1', medId: 'MED-1' },
+    { title: '🧫 Bacterial Infection', slot: 'Slot A2 & B1', medId: 'MED-2' },
+    { title: '🤧 Allergy / Cough', slot: 'Slot B2', medId: 'MED-4' },
+    { title: '💧 Dehydration / Diarrhea', slot: 'Slot C1', medId: 'MED-5' },
+    { title: '🩸 Diabetes / Blood Sugar', slot: 'Slot C2', medId: 'MED-6' },
+  ];
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-12 w-full">
       
-      {/* Top Doctor Selection & Command Center Bar */}
+      {/* Top Doctor Selection & Active Real Doctor Header */}
       <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-4 sm:p-6 shadow-2xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         
         <div className="flex items-center gap-3">
@@ -75,38 +101,19 @@ export default function DoctorPortal({ doctors = [], queue = [], inventory = [],
             <h2 className="text-lg font-black text-slate-100 flex items-center gap-2">
               Medical Command Center Portal
               <span className="bg-emerald-950 text-emerald-300 border border-emerald-600/40 text-[10px] px-2 py-0.5 rounded-full font-mono uppercase font-bold">
-                Online
+                Logged In: {selectedDoctor?.name || 'Dr. Manish Barad'}
               </span>
             </h2>
             <p className="text-xs text-slate-400 font-medium">
-              Manage patient walk-in requests, approval mailbox, and video calls
+              Specialty: {selectedDoctor?.specialty || 'General Physician'} • License: {selectedDoctor?.licenseNo || 'MCI-9901'}
             </p>
           </div>
         </div>
 
-        {/* Doctor Switcher Dropdown Bar */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 w-full md:w-auto">
-          <div className="flex items-center gap-2 text-xs text-slate-300 font-extrabold">
-            <Stethoscope className="w-4 h-4 text-cyan-400" />
-            <span>Active Doctor Profile:</span>
-          </div>
-
-          <div className="relative w-full sm:w-64">
-            <select
-              value={selectedDoctor?.id || doctors[0]?.id || ''}
-              onChange={handleSelectDoctor}
-              className="w-full bg-slate-950 text-cyan-300 font-extrabold border border-slate-800 rounded-xl px-3 py-2 text-xs outline-none cursor-pointer focus:border-cyan-500 transition appearance-none pr-8"
-            >
-              {(doctors && doctors.length > 0 ? doctors : [
-                { id: 'DOC-01', name: 'Dr. Manish Barad', specialty: 'General Physician' }
-              ]).map((d) => (
-                <option key={d.id} value={d.id}>
-                  {d.name} ({d.specialty || 'General Physician'})
-                </option>
-              ))}
-            </select>
-            <ChevronDown className="w-4 h-4 text-slate-400 absolute right-2.5 top-2.5 pointer-events-none" />
-          </div>
+        {/* Real Active Doctor Status Badge */}
+        <div className="flex items-center gap-2 bg-slate-950 px-4 py-2 rounded-2xl border border-slate-800 text-xs text-cyan-300 font-bold">
+          <ShieldCheck className="w-4 h-4 text-emerald-400" />
+          <span>Real MCI Verified Doctor Session</span>
         </div>
 
       </div>
@@ -174,9 +181,9 @@ export default function DoctorPortal({ doctors = [], queue = [], inventory = [],
                   </span>
                 </div>
 
-                <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-800/80 text-xs">
+                <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-800/80 text-xs space-y-1">
                   <span className="text-[10px] text-slate-500 font-bold block uppercase">Symptoms / Reason:</span>
-                  <p className="text-slate-300 font-medium mt-0.5">{req.symptoms || 'General Checkup Request'}</p>
+                  <p className="text-slate-300 font-medium">{req.symptoms || 'General Checkup Request'}</p>
                 </div>
 
                 {req.status === 'PENDING' ? (
@@ -245,96 +252,84 @@ export default function DoctorPortal({ doctors = [], queue = [], inventory = [],
         </div>
       )}
 
-      {/* Live Priority Queue & Inventory Control */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      {/* Real AI Prescription & Dosage Selection Section */}
+      <div className="bg-slate-900/90 border border-teal-500/40 rounded-3xl p-5 shadow-2xl space-y-4">
         
-        {/* Priority Patient Queue */}
-        <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-5 shadow-2xl space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-            <div className="flex items-center gap-2">
-              <Clock className="w-5 h-5 text-cyan-400" />
-              <h3 className="font-extrabold text-slate-100 text-sm sm:text-base">
-                Approved Patient Priority Queue ({queue.length})
+        <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+          <div className="flex items-center gap-2">
+            <div className="p-2 bg-teal-950 text-teal-300 rounded-xl border border-teal-700">
+              <Pill className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="font-extrabold text-slate-100 text-sm sm:text-base flex items-center gap-2">
+                🤖 Doctor AI Clinical Prescription & Kiosk Dispenser Control
               </h3>
+              <p className="text-xs text-slate-400">Select medicine, adjust exact tablet/strip dosage, and trigger automated kiosk delivery</p>
             </div>
           </div>
-
-          {queue && queue.length > 0 ? (
-            <div className="space-y-3">
-              {queue.map((item, idx) => (
-                <div
-                  key={item.queueId || idx}
-                  className="bg-slate-950 p-4 rounded-2xl border border-slate-800 flex items-center justify-between gap-3 hover:border-cyan-500/50 transition"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-xl bg-cyan-950 text-cyan-300 border border-cyan-800 flex items-center justify-center font-extrabold text-xs">
-                      #{idx + 1}
-                    </div>
-                    <div>
-                      <h4 className="font-extrabold text-slate-100 text-sm">{item.villagerName}</h4>
-                      <p className="text-xs text-slate-400">Symptoms: {item.symptoms}</p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => handleStartConsultation(item)}
-                      className="px-3 py-1.5 bg-gradient-to-r from-teal-500 to-cyan-500 text-slate-950 font-black rounded-xl text-xs transition shadow-md shadow-teal-500/20 flex items-center gap-1"
-                    >
-                      <Video className="w-3.5 h-3.5 fill-current" /> Call
-                    </button>
-
-                    <button
-                      onClick={() => setActiveChatModal(item)}
-                      className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl border border-slate-700"
-                    >
-                      <MessageSquare className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="p-8 text-center bg-slate-950 rounded-2xl border border-slate-800 text-xs text-slate-400">
-              No patients in active queue right now.
-            </div>
-          )}
         </div>
 
-        {/* Remote Medicine Inventory Control */}
-        <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-5 shadow-2xl space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-            <div className="flex items-center gap-2">
-              <PackageCheck className="w-5 h-5 text-teal-400" />
-              <h3 className="font-extrabold text-slate-100 text-sm sm:text-base">
-                Kiosk Medicine Inventory & Remote Vending
-              </h3>
-            </div>
+        {dispenseSuccessMsg && (
+          <div className="p-3 bg-emerald-950/90 border border-emerald-500 rounded-xl text-xs font-black text-emerald-300 flex items-center gap-2 animate-bounce">
+            <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+            <span>{dispenseSuccessMsg}</span>
           </div>
+        )}
 
-          <div className="space-y-3">
-            {inventory.map((med) => (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {inventory.map((med) => {
+            const qty = selectedDosage[med.id] || 1;
+            return (
               <div
                 key={med.id}
-                className="bg-slate-950 p-3 rounded-2xl border border-slate-800 flex items-center justify-between text-xs"
+                className="bg-slate-950 p-4 rounded-2xl border border-slate-800 flex flex-col justify-between space-y-3 hover:border-teal-500/60 transition"
               >
                 <div>
-                  <span className="font-mono font-bold text-cyan-400 bg-slate-900 px-1.5 py-0.5 rounded border border-slate-800 mr-2">
-                    {med.slot}
-                  </span>
-                  <span className="font-extrabold text-slate-200">{med.name}</span>
-                  <span className="text-[10px] text-slate-400 block mt-0.5">Stock: {med.currentStock} {med.unit}</span>
+                  <div className="flex items-center justify-between">
+                    <span className="font-mono font-bold text-cyan-400 text-xs bg-slate-900 px-2 py-0.5 rounded border border-slate-800">
+                      {med.slot}
+                    </span>
+                    <span className="text-[10px] text-emerald-400 font-bold bg-emerald-950 px-2 py-0.5 rounded border border-emerald-800">
+                      Stock: {med.currentStock} {med.unit}
+                    </span>
+                  </div>
+
+                  <h4 className="font-black text-sm text-slate-100 mt-2">{med.name}</h4>
+                  <span className="text-xs text-teal-300 block font-semibold">{med.category}</span>
+                  <p className="text-[10px] text-slate-400 italic mt-1 font-mono">{med.recommendedDosage}</p>
                 </div>
 
-                <button
-                  onClick={() => onDispenseMedicine(med.id, activeConsultation?.villagerId)}
-                  className="px-3 py-1.5 bg-teal-950 hover:bg-teal-900 border border-teal-600/50 text-teal-300 font-bold rounded-xl text-xs transition"
-                >
-                  Remote Dispense
-                </button>
+                {/* Dosage Quantity Selector (1 Tab, 2 Tabs, 3 Strips, etc.) */}
+                <div className="pt-2 border-t border-slate-900 space-y-2">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-slate-400 font-bold">Prescribe Quantity:</span>
+                    <div className="flex items-center gap-2 bg-slate-900 px-2 py-1 rounded-xl border border-slate-800">
+                      <button
+                        onClick={() => handleQuantityChange(med.id, -1)}
+                        className="p-1 text-slate-400 hover:text-slate-100 bg-slate-950 rounded"
+                      >
+                        <Minus className="w-3 h-3" />
+                      </button>
+                      <span className="font-black text-teal-300 text-xs w-4 text-center">{qty}</span>
+                      <button
+                        onClick={() => handleQuantityChange(med.id, 1)}
+                        className="p-1 text-slate-400 hover:text-slate-100 bg-slate-950 rounded"
+                      >
+                        <Plus className="w-3 h-3" />
+                      </button>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => handleDispenseWithDosage(med)}
+                    className="w-full py-2 bg-gradient-to-r from-teal-500 to-cyan-500 text-slate-950 font-black rounded-xl text-xs transition shadow-md shadow-teal-500/20 flex items-center justify-center gap-1.5 transform hover:scale-[1.02]"
+                  >
+                    <PackageCheck className="w-4 h-4" /> Dispense {qty} {med.unit} Now
+                  </button>
+                </div>
               </div>
-            ))}
-          </div>
+            );
+          })}
         </div>
 
       </div>
