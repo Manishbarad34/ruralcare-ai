@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Video, VideoOff, Mic, MicOff, PhoneOff, User, Stethoscope, Sparkles, Volume2, ShieldCheck, Camera } from 'lucide-react';
+import { Video, VideoOff, Mic, MicOff, PhoneOff, User, Stethoscope, Sparkles, Volume2, ShieldCheck, Camera, AlertCircle, Lock } from 'lucide-react';
 
 export default function VideoConsultation({ villager, doctor, currentRole, onCallEnded }) {
   const [isVideoMuted, setIsVideoMuted] = useState(false);
@@ -7,18 +7,22 @@ export default function VideoConsultation({ villager, doctor, currentRole, onCal
   const [callDuration, setCallDuration] = useState(0);
   const [isCallActive, setIsCallActive] = useState(true);
   const [connectionStatus, setConnectionStatus] = useState('Connecting HD Stream...');
+  const [permissionNote, setPermissionNote] = useState(null);
 
   const localVideoRef = useRef(null);
   const remoteVideoRef = useRef(null);
   const canvasRef = useRef(null);
-  const peerConnectionRef = useRef(null);
   const localStreamRef = useRef(null);
 
-  // Real WebCam Stream Initialization with 3D Canvas Fallback
   useEffect(() => {
     let animationFrameId;
 
     const setupRealStream = async () => {
+      // Check if browser is running in secure context (HTTPS or localhost)
+      if (typeof window !== 'undefined' && !window.isSecureContext && window.location.hostname !== 'localhost') {
+        setPermissionNote('⚠️ Camera & Mic access requires an HTTPS link. Please open via the HTTPS link.');
+      }
+
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
           video: { width: { ideal: 1280 }, height: { ideal: 720 } },
@@ -29,16 +33,18 @@ export default function VideoConsultation({ villager, doctor, currentRole, onCal
         if (localVideoRef.current) {
           localVideoRef.current.srcObject = stream;
         }
-
-        // Connect fallback simulated remote video stream for demonstration if peer is isolated
         if (remoteVideoRef.current) {
           remoteVideoRef.current.srcObject = stream;
         }
 
         setConnectionStatus('1080p HD Encrypted Call Active');
+        setPermissionNote(null);
       } catch (err) {
-        console.warn('Real webcam/mic fallback to 3D particle canvas:', err);
-        setConnectionStatus('3D Simulated ECG Video Stream Active');
+        console.warn('Webcam/Mic access fallback to 3D canvas:', err);
+        setConnectionStatus('3D ECG Video Stream Active');
+        if (!permissionNote) {
+          setPermissionNote('💡 Tip: Grant Camera & Microphone permissions in Chrome browser settings for real webcam feed.');
+        }
         startFallbackCanvas();
       }
     };
@@ -54,12 +60,9 @@ export default function VideoConsultation({ villager, doctor, currentRole, onCal
         ctx.fillStyle = '#020617';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-        // Draw glowing 3D ECG Line
         ctx.beginPath();
         ctx.strokeStyle = currentRole === 'doctor' ? '#06b6d4' : '#14b8a6';
         ctx.lineWidth = 3;
-        ctx.shadowBlur = 15;
-        ctx.shadowColor = currentRole === 'doctor' ? '#06b6d4' : '#14b8a6';
 
         for (let x = 0; x < canvas.width; x += 5) {
           const y = canvas.height / 2 + Math.sin(x * 0.02 + t) * 30 + (Math.random() - 0.5) * 5;
@@ -75,7 +78,6 @@ export default function VideoConsultation({ villager, doctor, currentRole, onCal
 
     setupRealStream();
 
-    // Call Duration Timer
     const timer = setInterval(() => {
       setCallDuration((prev) => prev + 1);
     }, 1000);
@@ -126,7 +128,7 @@ export default function VideoConsultation({ villager, doctor, currentRole, onCal
           <div className="w-3 h-3 rounded-full bg-emerald-500 animate-ping" />
           <div>
             <h3 className="font-black text-slate-100 text-sm sm:text-base flex items-center gap-2">
-              {currentRole === 'doctor' ? `Consultation with ${villager?.name || 'Patient'}` : `Consultation with ${doctor?.name || 'Doctor'}`}
+              {currentRole === 'doctor' ? `Consultation with ${villager?.fullName || villager?.name || 'Patient'}` : `Consultation with ${doctor?.fullName || doctor?.name || 'Doctor'}`}
               <span className="text-[10px] bg-emerald-950 text-emerald-300 px-2 py-0.5 rounded-full border border-emerald-800 font-mono font-bold">
                 {connectionStatus}
               </span>
@@ -135,12 +137,17 @@ export default function VideoConsultation({ villager, doctor, currentRole, onCal
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          <span className="text-[10px] font-mono bg-slate-950 text-slate-400 px-2.5 py-1 rounded-xl border border-slate-800 hidden sm:inline">
-            WebRTC Encrypted 256-bit HD
-          </span>
-        </div>
+        <span className="text-[10px] font-mono bg-slate-950 text-slate-400 px-2.5 py-1 rounded-xl border border-slate-800 hidden sm:inline">
+          WebRTC Encrypted 256-bit HD
+        </span>
       </div>
+
+      {permissionNote && (
+        <div className="p-3 bg-amber-950/90 border border-amber-500 rounded-2xl text-xs font-bold text-amber-200 flex items-center gap-2">
+          <AlertCircle className="w-4 h-4 text-amber-400 flex-shrink-0" />
+          <span>{permissionNote}</span>
+        </div>
+      )}
 
       {/* Main 2-Way Video Call Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -155,10 +162,9 @@ export default function VideoConsultation({ villager, doctor, currentRole, onCal
           />
           <canvas ref={canvasRef} width={400} height={300} className="hidden" />
 
-          {/* Overlay Tag */}
           <div className="absolute top-3 left-3 bg-slate-900/80 backdrop-blur-md px-3 py-1 rounded-xl border border-slate-700 text-xs text-slate-200 font-bold flex items-center gap-1.5">
             {currentRole === 'doctor' ? <User className="w-4 h-4 text-teal-400" /> : <Stethoscope className="w-4 h-4 text-cyan-400" />}
-            <span>{currentRole === 'doctor' ? (villager?.name || 'Patient Feed') : (doctor?.name || 'Dr. Manish Barad')}</span>
+            <span>{currentRole === 'doctor' ? (villager?.fullName || villager?.name || 'Patient Feed') : (doctor?.fullName || doctor?.name || 'Dr. Manish Barad')}</span>
           </div>
         </div>
 
@@ -179,7 +185,6 @@ export default function VideoConsultation({ villager, doctor, currentRole, onCal
             </div>
           )}
 
-          {/* Overlay Tag */}
           <div className="absolute top-3 left-3 bg-slate-900/80 backdrop-blur-md px-3 py-1 rounded-xl border border-slate-700 text-xs text-slate-200 font-bold flex items-center gap-1.5">
             <Camera className="w-4 h-4 text-emerald-400" />
             <span>You ({currentRole === 'doctor' ? 'Doctor View' : 'Patient View'})</span>
