@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Mic, MicOff, Video, VideoOff, PhoneOff, PhoneCall, Volume2, VolumeX, ShieldCheck, Camera } from 'lucide-react';
+import { Mic, MicOff, Video, VideoOff, PhoneOff, PhoneCall, Volume2, VolumeX, ShieldCheck, Camera, Sparkles } from 'lucide-react';
 
 export default function VideoConsultation({ villager, doctor, currentRole, onCallEnded }) {
   const [callState, setCallState] = useState('CONNECTED');
@@ -41,7 +41,7 @@ export default function VideoConsultation({ villager, doctor, currentRole, onCal
     requestWebcam();
   }, []);
 
-  // Animated Fallback Canvas Feed
+  // Dynamic High-Fidelity Medical Canvas Animation Stream Fallback
   useEffect(() => {
     let animId;
     let angle = 0;
@@ -51,9 +51,10 @@ export default function VideoConsultation({ villager, doctor, currentRole, onCal
       const canvas = remoteCanvasRef.current;
       if (canvas) {
         const ctx = canvas.getContext('2d');
-        ctx.fillStyle = '#0f172a';
+        ctx.fillStyle = '#020617';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
 
+        // Medical ECG Spectrum Lines
         ctx.strokeStyle = '#14b8a6';
         ctx.lineWidth = 3;
         ctx.beginPath();
@@ -64,29 +65,35 @@ export default function VideoConsultation({ villager, doctor, currentRole, onCal
         }
         ctx.stroke();
 
-        ctx.fillStyle = '#1e293b';
+        // User Avatar Circle
+        ctx.fillStyle = '#0f172a';
         ctx.beginPath();
-        ctx.arc(canvas.width / 2, canvas.height / 2 - 20, 45, 0, Math.PI * 2);
+        ctx.arc(canvas.width / 2, canvas.height / 2 - 20, 48, 0, Math.PI * 2);
         ctx.fill();
 
+        ctx.strokeStyle = '#06b6d4';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
         ctx.fillStyle = '#38bdf8';
-        ctx.font = 'bold 24px sans-serif';
+        ctx.font = 'bold 26px sans-serif';
         ctx.textAlign = 'center';
         const nameText = currentRole === 'doctor' ? (villager?.name || 'Patient') : (doctor?.name || 'Doctor');
-        ctx.fillText(nameText.charAt(0), canvas.width / 2, canvas.height / 2 - 12);
+        ctx.fillText(nameText.charAt(0), canvas.width / 2, canvas.height / 2 - 10);
 
-        ctx.fillStyle = '#94a3b8';
-        ctx.font = 'bold 12px sans-serif';
+        ctx.fillStyle = '#f8fafc';
+        ctx.font = 'bold 14px sans-serif';
         ctx.fillText(nameText, canvas.width / 2, canvas.height / 2 + 50);
 
         ctx.fillStyle = '#10b981';
-        ctx.fillText('• Live Encrypted HD Stream', canvas.width / 2, canvas.height / 2 + 70);
+        ctx.font = 'extrabold 11px sans-serif';
+        ctx.fillText('● 1080p HD Live Consultation Stream', canvas.width / 2, canvas.height / 2 + 72);
       }
 
       const lCanvas = localCanvasRef.current;
       if (lCanvas) {
         const lCtx = lCanvas.getContext('2d');
-        lCtx.fillStyle = '#020617';
+        lCtx.fillStyle = '#090d16';
         lCtx.fillRect(0, 0, lCanvas.width, lCanvas.height);
 
         lCtx.strokeStyle = '#06b6d4';
@@ -125,17 +132,17 @@ export default function VideoConsultation({ villager, doctor, currentRole, onCal
     setCallState('ENDED');
     setTimeout(() => {
       if (onCallEnded) onCallEnded();
-    }, 600);
+    }, 500);
   };
 
   const doctorName = doctor?.name || 'Dr. Manish Barad';
   const patientName = villager?.name || 'Rahul Kumar';
 
   return (
-    <div className="relative w-full max-w-full h-[85vh] sm:h-[650px] bg-slate-950 rounded-3xl overflow-hidden border border-slate-800 shadow-2xl flex flex-col justify-between select-none">
+    <div className="relative w-full h-[75vh] sm:h-[620px] bg-slate-950 rounded-3xl overflow-hidden border border-slate-800 shadow-2xl flex flex-col justify-between select-none">
       
-      {/* Remote Video Container */}
-      <div className="absolute inset-0 z-0 bg-slate-900 flex items-center justify-center">
+      {/* Remote Viewport Video Stream Container */}
+      <div className="absolute inset-0 z-0 bg-slate-950 flex items-center justify-center">
         <video
           ref={remoteVideoRef}
           autoPlay
@@ -151,25 +158,25 @@ export default function VideoConsultation({ villager, doctor, currentRole, onCal
           className={`w-full h-full object-cover ${hasCameraPermission && !isVideoOff ? 'hidden' : 'block'}`}
         />
 
-        <div className="absolute inset-0 bg-gradient-to-b from-slate-950/80 via-transparent to-slate-950/90 pointer-events-none" />
+        <div className="absolute inset-0 bg-gradient-to-b from-slate-950/80 via-transparent to-slate-950/95 pointer-events-none" />
       </div>
 
-      {/* Top Floating Status Bar */}
-      <div className="relative z-10 p-4 sm:p-6 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-teal-500/20 border-2 border-teal-400 flex items-center justify-center text-teal-300 font-extrabold text-lg shadow-lg">
+      {/* Top Floating Mobile-Responsive Status Header */}
+      <div className="relative z-10 p-3 sm:p-5 flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2.5">
+          <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-2xl bg-teal-500/20 border-2 border-teal-400 flex items-center justify-center text-teal-300 font-black text-sm sm:text-lg shadow-lg">
             {currentRole === 'doctor' ? patientName.charAt(0) : doctorName.charAt(0)}
           </div>
           <div>
-            <h3 className="font-extrabold text-white text-base sm:text-lg flex items-center gap-2">
+            <h3 className="font-extrabold text-white text-sm sm:text-base flex items-center gap-1.5">
               {currentRole === 'doctor' ? patientName : doctorName}
-              <span className="text-[10px] bg-emerald-950 text-emerald-300 px-2 py-0.5 rounded-full border border-emerald-600 font-mono">
+              <span className="text-[9px] sm:text-[10px] bg-emerald-950 text-emerald-300 px-2 py-0.5 rounded-full border border-emerald-600 font-mono font-bold">
                 HD 1080p
               </span>
             </h3>
-            <p className="text-xs text-emerald-400 font-mono flex items-center gap-1.5 mt-0.5">
+            <p className="text-[11px] text-emerald-400 font-mono flex items-center gap-1 mt-0.5">
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              Connected ({formatTime(callDuration)})
+              Live ({formatTime(callDuration)})
             </p>
           </div>
         </div>
@@ -178,20 +185,20 @@ export default function VideoConsultation({ villager, doctor, currentRole, onCal
           {!hasCameraPermission && (
             <button
               onClick={requestWebcam}
-              className="px-3 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold rounded-xl text-xs flex items-center gap-1 shadow-lg shadow-amber-500/20"
+              className="px-2.5 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-xl text-[11px] flex items-center gap-1 shadow-lg shadow-amber-500/20 transition"
             >
-              <Camera className="w-4 h-4" /> Enable Camera
+              <Camera className="w-3.5 h-3.5" /> Enable Cam
             </button>
           )}
-          <div className="hidden sm:flex items-center gap-2 bg-slate-900/80 backdrop-blur-md px-3 py-1.5 rounded-2xl border border-slate-700 text-xs text-cyan-300 font-bold">
+          <div className="hidden sm:flex items-center gap-1.5 bg-slate-900/80 backdrop-blur-md px-3 py-1.5 rounded-2xl border border-slate-700 text-xs text-cyan-300 font-extrabold">
             <ShieldCheck className="w-4 h-4 text-emerald-400" />
             <span>256-Bit E2EE</span>
           </div>
         </div>
       </div>
 
-      {/* PIP Corner Window */}
-      <div className="absolute top-20 right-4 sm:right-6 z-20 w-32 sm:w-40 h-44 sm:h-52 bg-slate-950 rounded-2xl overflow-hidden border-2 border-teal-400/80 shadow-2xl flex items-center justify-center">
+      {/* Mobile PIP Self-Camera Corner Floating Window */}
+      <div className="absolute top-16 right-3 sm:top-20 sm:right-6 z-20 w-28 h-36 sm:w-40 sm:h-52 bg-slate-950 rounded-2xl overflow-hidden border-2 border-teal-400/90 shadow-2xl flex items-center justify-center">
         <video
           ref={localVideoRef}
           autoPlay
@@ -207,47 +214,51 @@ export default function VideoConsultation({ villager, doctor, currentRole, onCal
           className={`w-full h-full object-cover ${hasCameraPermission && !isVideoOff ? 'hidden' : 'block'}`}
         />
 
-        <div className="absolute bottom-2 left-2 text-[9px] bg-slate-950/90 text-teal-300 px-1.5 py-0.5 rounded font-bold">
+        <div className="absolute bottom-1.5 left-1.5 text-[8px] sm:text-[9px] bg-slate-950/90 text-teal-300 px-1.5 py-0.5 rounded font-extrabold">
           You ({currentRole === 'doctor' ? 'Doctor' : 'Patient'})
         </div>
       </div>
 
-      {/* WhatsApp Round Controls Bar */}
-      <div className="relative z-10 p-6 flex flex-col items-center gap-4">
-        <div className="bg-slate-900/90 backdrop-blur-xl border border-slate-800 rounded-full px-6 py-3.5 shadow-2xl flex items-center justify-center gap-4 sm:gap-6">
+      {/* WhatsApp Round Touch Controls Bar */}
+      <div className="relative z-10 p-4 sm:p-6 flex flex-col items-center gap-3">
+        <div className="bg-slate-900/90 backdrop-blur-xl border border-slate-800 rounded-full px-4 py-2.5 sm:px-6 sm:py-3.5 shadow-2xl flex items-center justify-center gap-3 sm:gap-6">
           
           <button
             onClick={() => setIsMuted(!isMuted)}
-            className={`w-12 h-12 rounded-full flex items-center justify-center transition shadow-lg ${
+            className={`w-11 h-11 sm:w-13 sm:h-13 rounded-full flex items-center justify-center transition shadow-lg ${
               isMuted ? 'bg-rose-500 text-white' : 'bg-slate-800 hover:bg-slate-700 text-slate-200'
             }`}
+            title="Mute Audio"
           >
             {isMuted ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
           </button>
 
           <button
             onClick={() => setIsVideoOff(!isVideoOff)}
-            className={`w-12 h-12 rounded-full flex items-center justify-center transition shadow-lg ${
+            className={`w-11 h-11 sm:w-13 sm:h-13 rounded-full flex items-center justify-center transition shadow-lg ${
               isVideoOff ? 'bg-rose-500 text-white' : 'bg-slate-800 hover:bg-slate-700 text-slate-200'
             }`}
+            title="Toggle Camera"
           >
             {isVideoOff ? <VideoOff className="w-5 h-5" /> : <Video className="w-5 h-5" />}
           </button>
 
           <button
             onClick={() => setIsSpeakerOff(!isSpeakerOff)}
-            className={`w-12 h-12 rounded-full flex items-center justify-center transition shadow-lg ${
+            className={`w-11 h-11 sm:w-13 sm:h-13 rounded-full flex items-center justify-center transition shadow-lg ${
               isSpeakerOff ? 'bg-amber-500 text-slate-950' : 'bg-slate-800 hover:bg-slate-700 text-slate-200'
             }`}
+            title="Toggle Speaker"
           >
             {isSpeakerOff ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
           </button>
 
           <button
             onClick={handleEndCall}
-            className="w-14 h-14 rounded-full bg-rose-600 hover:bg-rose-500 text-white flex items-center justify-center transition shadow-xl shadow-rose-600/30 transform hover:scale-105"
+            className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-rose-600 hover:bg-rose-500 text-white flex items-center justify-center transition shadow-xl shadow-rose-600/30 transform hover:scale-105"
+            title="End Consultation Call"
           >
-            <PhoneOff className="w-6 h-6" />
+            <PhoneOff className="w-5 h-5 sm:w-6 sm:h-6" />
           </button>
 
         </div>
