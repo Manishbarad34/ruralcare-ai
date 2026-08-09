@@ -1,19 +1,24 @@
 import React, { useState, useEffect, useRef } from 'react';
 import VideoConsultation from './VideoConsultation.jsx';
 import IncomingCallModal from './IncomingCallModal.jsx';
+import DirectChatOverlay from './DirectChatOverlay.jsx';
 import DeliveryPanel from './DeliveryPanel.jsx';
-import { Stethoscope, User, Video, MessageSquare, CheckCircle2, Clock, PackageCheck, ShieldCheck, Inbox, X, Check, BellRing, Pill, Plus, Minus, Send, PhoneCall, PhoneOff } from 'lucide-react';
+import { Stethoscope, User, Video, MessageSquare, CheckCircle2, Clock, PackageCheck, ShieldCheck, Inbox, X, Check, BellRing, Pill, Plus, Minus, Send, PhoneCall, Phone, Sparkles } from 'lucide-react';
 
 export default function DoctorDashboard({ user, token }) {
-  const [activeTab, setActiveTab] = useState('mailbox');
+  const [activeTab, setActiveTab] = useState('active'); // 'active' | 'mailbox' | 'prescriptions' | 'delivery'
   const [mailboxRequests, setMailboxRequests] = useState([]);
   const [activeConsultation, setActiveConsultation] = useState(null);
   
-  // Real Targeted WebSockets & Call Signaling State
+  // Real Targeted WebSockets & Call/Chat Signaling State
   const [isCallingPatient, setIsCallingPatient] = useState(false);
   const [callingPatientName, setCallingPatientName] = useState('');
   const [callingTargetUserId, setCallingTargetUserId] = useState(null);
   const [incomingCall, setIncomingCall] = useState(null);
+
+  // Direct Chat State
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [chatTargetUser, setChatTargetUser] = useState(null);
 
   // Prescription Generator State
   const [prescribeNotes, setPrescribeNotes] = useState('');
@@ -37,17 +42,14 @@ export default function DoctorDashboard({ user, token }) {
     ws.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
-        console.log('🔌 Doctor WebSocket Event Received:', data.type);
 
         if (data.type === 'call:invite') {
-          // Patient is calling Doctor
           setIncomingCall({
             callerUserId: data.senderUserId,
             callerName: data.payload?.callerName || 'Patient',
             isVideo: true
           });
         } else if (data.type === 'call:accept') {
-          // Patient accepted Doctor's call!
           setIsCallingPatient(false);
           setActiveConsultation({
             fullName: callingPatientName || 'Patient',
@@ -81,7 +83,7 @@ export default function DoctorDashboard({ user, token }) {
 
   useEffect(() => {
     fetchDoctorMailbox();
-    const interval = setInterval(fetchDoctorMailbox, 2000);
+    const interval = setInterval(fetchDoctorMailbox, 1000);
     return () => clearInterval(interval);
   }, [token]);
 
@@ -103,29 +105,32 @@ export default function DoctorDashboard({ user, token }) {
   };
 
   // DOCTOR INITIATES CALL -> SENDS TARGETED WS SIGNAL TO PATIENT PHONE!
-  const handleInitiateCallToPatient = (reqItem) => {
-    const targetPatientUserId = reqItem.patient?.userId;
-    const targetPatientName = reqItem.patient?.fullName || 'Patient';
-
-    if (!targetPatientUserId) {
-      return alert('Patient user ID not found.');
-    }
+  const handleInitiateCallToPatient = (patientObj, isVideo = true) => {
+    const targetPatientUserId = patientObj?.userId || patientObj?.user?.id;
+    const targetPatientName = patientObj?.fullName || 'Patient';
 
     setCallingPatientName(targetPatientName);
     setCallingTargetUserId(targetPatientUserId);
     setIsCallingPatient(true);
 
-    // Send targeted call:invite WebSocket message specifically to targetPatientUserId
-    if (wsRef.current && wsRef.current.readyState === 1) {
+    if (wsRef.current && wsRef.current.readyState === 1 && targetPatientUserId) {
       wsRef.current.send(JSON.stringify({
         type: 'call:invite',
         targetUserId: targetPatientUserId,
         payload: {
           callerName: doctorProfile.fullName,
-          isVideo: true
+          isVideo
         }
       }));
     }
+  };
+
+  const handleOpenChatWithPatient = (patientObj) => {
+    setChatTargetUser({
+      userId: patientObj?.userId || patientObj?.user?.id,
+      fullName: patientObj?.fullName || 'Patient'
+    });
+    setIsChatOpen(true);
   };
 
   const handleAcceptIncomingCall = () => {
@@ -180,10 +185,22 @@ export default function DoctorDashboard({ user, token }) {
   };
 
   const pendingRequests = mailboxRequests.filter(m => m.status === 'PENDING');
+  const approvedRequests = mailboxRequests.filter(m => m.status === 'ACCEPTED');
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto pb-12 w-full px-2 sm:px-4">
+    <div className="space-y-6 max-w-7xl mx-auto pb-12 w-full px-2 sm:px-4 select-none">
       
+      {/* Direct Live Chat Overlay Modal */}
+      <DirectChatOverlay
+        isOpen={isChatOpen}
+        onClose={() => setIsChatOpen(false)}
+        currentRole="doctor"
+        activeUser={user?.doctorProfile}
+        peerUser={chatTargetUser}
+        wsRef={wsRef}
+        targetUserId={chatTargetUser?.userId}
+      />
+
       {/* Incoming Call Ringing Modal from Patient */}
       <IncomingCallModal
         incomingCall={incomingCall}
@@ -229,7 +246,7 @@ export default function DoctorDashboard({ user, token }) {
               </span>
             </h2>
             <p className="text-xs text-slate-400 font-medium">
-              Specialty: {doctorProfile.specialty} • License: {doctorProfile.licenseNo} • Targeted 1-to-1 WebSockets
+              Specialty: {doctorProfile.specialty} • License: {doctorProfile.licenseNo} • Targeted WebSockets
             </p>
           </div>
         </div>
@@ -238,6 +255,83 @@ export default function DoctorDashboard({ user, token }) {
           <ShieldCheck className="w-4 h-4 text-emerald-400" />
           <span>MCI Verified Doctor Session</span>
         </div>
+      </div>
+
+      {/* APPROVED ACTIVE PATIENT CONSULTATIONS DIRECTORY */}
+      <div className="bg-slate-900/90 border border-emerald-500/40 rounded-3xl p-5 shadow-2xl space-y-4">
+        <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+          <div className="flex items-center gap-2">
+            <div className="p-2 bg-emerald-950 text-emerald-300 rounded-xl border border-emerald-700">
+              <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+            </div>
+            <div>
+              <h3 className="font-extrabold text-slate-100 text-sm sm:text-base flex items-center gap-2">
+                Approved Active Patients Directory ({approvedRequests.length})
+                <span className="text-[10px] bg-emerald-950 text-emerald-300 px-2 py-0.5 rounded-full border border-emerald-800 font-mono">
+                  Ready to Call & Chat
+                </span>
+              </h3>
+              <p className="text-xs text-slate-400">Patients whose consultation requests have been approved by you</p>
+            </div>
+          </div>
+        </div>
+
+        {approvedRequests && approvedRequests.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {approvedRequests.map((req) => (
+              <div key={req.id} className="p-4 rounded-2xl border bg-slate-950 border-slate-800 flex flex-col justify-between space-y-3 hover:border-emerald-500/60 transition">
+                <div className="flex items-start justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-9 h-9 rounded-xl bg-slate-900 border border-slate-800 text-cyan-300 flex items-center justify-center font-bold text-sm">
+                      <User className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h4 className="font-black text-sm text-slate-100">{req.patient?.fullName || 'Patient'}</h4>
+                      <p className="text-[11px] text-slate-400">Village: {req.patient?.village || 'Rampur'}</p>
+                    </div>
+                  </div>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border bg-emerald-950 text-emerald-300 border-emerald-800">
+                    APPROVED
+                  </span>
+                </div>
+
+                <div className="bg-slate-900 p-2.5 rounded-xl border border-slate-800 text-xs">
+                  <span className="text-[10px] text-slate-500 font-bold block uppercase">Symptoms:</span>
+                  <p className="text-slate-300 font-medium">{req.symptoms}</p>
+                </div>
+
+                {/* 3 Action Buttons for Approved Patient: Video Call, Voice Call, Chat */}
+                <div className="grid grid-cols-3 gap-2 pt-1">
+                  <button
+                    onClick={() => handleInitiateCallToPatient(req.patient, true)}
+                    className="py-2.5 bg-gradient-to-r from-emerald-500 to-teal-500 text-slate-950 font-black rounded-xl text-[11px] flex items-center justify-center gap-1 shadow-md shadow-emerald-500/20 transform hover:scale-105"
+                  >
+                    <Video className="w-3.5 h-3.5 fill-current" /> Video Call
+                  </button>
+
+                  <button
+                    onClick={() => handleInitiateCallToPatient(req.patient, false)}
+                    className="py-2.5 bg-slate-800 hover:bg-slate-700 text-emerald-300 font-extrabold rounded-xl text-[11px] border border-slate-700 flex items-center justify-center gap-1"
+                  >
+                    <Phone className="w-3.5 h-3.5" /> Voice Call
+                  </button>
+
+                  <button
+                    onClick={() => handleOpenChatWithPatient(req.patient)}
+                    className="py-2.5 bg-slate-800 hover:bg-slate-700 text-cyan-300 font-extrabold rounded-xl text-[11px] border border-slate-700 flex items-center justify-center gap-1"
+                  >
+                    <MessageSquare className="w-3.5 h-3.5" /> Chat
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="p-6 text-center bg-slate-950 rounded-2xl border border-slate-800 text-xs text-slate-500 space-y-1">
+            <User className="w-6 h-6 mx-auto text-slate-600" />
+            <p>No approved patients yet. Approve incoming requests from the Mailbox below to add patients to your active list.</p>
+          </div>
+        )}
       </div>
 
       {/* CONSULTATION APPROVAL MAILBOX SECTION */}
@@ -295,9 +389,9 @@ export default function DoctorDashboard({ user, token }) {
                   <div className="grid grid-cols-2 gap-2">
                     <button
                       onClick={() => handleRespondRequest(req.id, 'ACCEPTED')}
-                      className="py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-xl text-xs flex items-center justify-center gap-1 shadow-md shadow-emerald-500/20"
+                      className="py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-xl text-xs flex items-center justify-center gap-1 shadow-md shadow-emerald-500/20 font-extrabold"
                     >
-                      <Check className="w-4 h-4 stroke-[3]" /> Approve
+                      <Check className="w-4 h-4 stroke-[3]" /> Approve Request
                     </button>
                     <button
                       onClick={() => handleRespondRequest(req.id, 'REJECTED')}
@@ -308,7 +402,7 @@ export default function DoctorDashboard({ user, token }) {
                   </div>
                 ) : req.status === 'ACCEPTED' ? (
                   <button
-                    onClick={() => handleInitiateCallToPatient(req)}
+                    onClick={() => handleInitiateCallToPatient(req.patient, true)}
                     className="w-full py-2 bg-gradient-to-r from-teal-500 to-cyan-500 text-slate-950 font-black rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-md shadow-teal-500/20 transform hover:scale-[1.02]"
                   >
                     <Video className="w-4 h-4 fill-current" /> Call Patient Phone Now
@@ -332,6 +426,8 @@ export default function DoctorDashboard({ user, token }) {
           doctor={doctorProfile}
           currentRole="doctor"
           onCallEnded={() => setActiveConsultation(null)}
+          socket={wsRef.current}
+          targetUserId={activeConsultation?.targetUserId}
         />
       )}
 

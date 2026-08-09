@@ -52,7 +52,6 @@ export default function PatientDashboard({ user, token }) {
     ws.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
-        console.log('🔌 Patient WebSocket Event Received:', data.type);
 
         if (data.type === 'call:invite') {
           setIncomingCall({
@@ -186,7 +185,10 @@ export default function PatientDashboard({ user, token }) {
         targetUserId: incomingCall.callerUserId
       }));
     }
-    setActiveConsultation({ fullName: incomingCall?.callerName || 'Doctor' });
+    setActiveConsultation({
+      fullName: incomingCall?.callerName || 'Doctor',
+      targetUserId: incomingCall?.callerUserId
+    });
     setIncomingCall(null);
     setActiveTab('consultation');
   };
@@ -214,6 +216,8 @@ export default function PatientDashboard({ user, token }) {
         currentRole="patient"
         activeUser={user?.patientProfile}
         peerUser={approvedRequest?.doctor}
+        wsRef={wsRef}
+        targetUserId={approvedRequest?.doctor?.userId}
       />
 
       {/* Incoming Call Ringing Modal on Patient's Phone */}
@@ -428,7 +432,7 @@ export default function PatientDashboard({ user, token }) {
                   <div className="flex items-center gap-2 pt-2 border-t border-slate-900">
                     <button
                       onClick={() => handleRequestDoctorConsultation(doc)}
-                      className="flex-1 py-2 bg-gradient-to-r from-teal-500 to-cyan-500 text-slate-950 font-black rounded-xl text-xs transition shadow-md shadow-teal-500/20 flex items-center justify-center gap-1"
+                      className="flex-1 py-2 bg-gradient-to-r from-teal-500 to-cyan-500 text-slate-950 font-black rounded-xl text-xs transition shadow-md shadow-teal-500/20 flex items-center justify-center gap-1 font-extrabold"
                     >
                       <Send className="w-3.5 h-3.5" /> Request Consultation
                     </button>
@@ -457,6 +461,8 @@ export default function PatientDashboard({ user, token }) {
           doctor={activeConsultation || { fullName: 'Consulting Doctor' }}
           currentRole="patient"
           onCallEnded={() => setActiveTab('intake')}
+          socket={wsRef.current}
+          targetUserId={approvedRequest?.doctor?.userId || activeConsultation?.targetUserId}
         />
       )}
 
