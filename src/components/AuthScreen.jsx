@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Stethoscope, UserCheck, ShieldCheck, ArrowRight, Zap, Lock, Scan, Activity, Sparkles } from 'lucide-react';
+import { Stethoscope, UserCheck, ShieldCheck, ArrowRight, Zap, Lock, Scan, Activity, Sparkles, UserPlus } from 'lucide-react';
 import { db } from '../../db/database.js';
 
 export default function AuthScreen({ onLoginSuccess, villagers = [], doctors = [] }) {
@@ -11,32 +11,30 @@ export default function AuthScreen({ onLoginSuccess, villagers = [], doctors = [
 
   const handlePatientSubmit = (e) => {
     e.preventDefault();
-    const villager = db.loginVillager(phone || name || 'Rahul Kumar', password);
+    if (!name.trim()) return alert('Please enter your full name');
+    const villager = db.loginVillager(name.trim(), password);
     onLoginSuccess({ ...villager, role: 'patient' });
   };
 
   const handleDoctorSubmit = (e) => {
     e.preventDefault();
-    const doctor = db.loginDoctor(licenseNo || name || 'Dr. Manish Barad', password);
+    if (!name.trim()) return alert('Please enter Doctor Name');
+    const doctor = db.loginDoctor(licenseNo.trim() || name.trim(), password);
     onLoginSuccess({ ...doctor, role: 'doctor' });
   };
 
   const handleQuickPatientLogin = (selectedVillager) => {
-    const vObj = selectedVillager || (villagers && villagers[0]) || { name: 'Rahul Kumar', phone: '9876543210', village: 'Rampur' };
-    const villager = db.registerVillager(vObj);
-    onLoginSuccess({ ...villager, role: 'patient' });
+    onLoginSuccess({ ...selectedVillager, role: 'patient' });
   };
 
   const handleQuickDoctorLogin = (selectedDoc) => {
-    const dObj = selectedDoc || (doctors && doctors[0]) || { name: 'Dr. Manish Barad', licenseNo: 'MCI-9901', specialty: 'General Physician' };
-    const doctor = db.registerDoctor(dObj);
-    onLoginSuccess({ ...doctor, role: 'doctor' });
+    onLoginSuccess({ ...selectedDoc, role: 'doctor' });
   };
 
   return (
     <div className="min-h-[85vh] flex flex-col items-center justify-center p-4 sm:p-6 max-w-5xl mx-auto w-full select-none">
       
-      {/* Brand Header with 3D Glowing Badge */}
+      {/* Brand Header */}
       <div className="text-center space-y-3 mb-10">
         <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-slate-900/90 border border-teal-500/50 text-teal-300 text-xs font-black uppercase tracking-widest shadow-[0_0_20px_rgba(20,184,166,0.3)] animate-pulse-glow">
           <ShieldCheck className="w-4 h-4 text-teal-400" /> SIH 2026 Telemedicine Authentication Gateway
@@ -77,25 +75,27 @@ export default function AuthScreen({ onLoginSuccess, villagers = [], doctors = [
               </p>
             </div>
 
-            {/* Quick Demo Patients Selection Buttons */}
+            {/* Registered Patients Selector */}
             <div className="space-y-2.5 pt-3 border-t border-slate-800/80">
               <span className="text-[10px] font-extrabold text-teal-400 uppercase tracking-wider block flex items-center gap-1">
-                <Zap className="w-3.5 h-3.5 fill-current" /> Quick 1-Click Patient Sign-In:
+                <UserCheck className="w-3.5 h-3.5" /> Registered Patients ({villagers.length}):
               </span>
-              <div className="flex flex-wrap gap-2">
-                {(villagers && villagers.length > 0 ? villagers : [
-                  { name: 'Rahul Kumar', id: 'VILL-101', village: 'Rampur' },
-                  { name: 'Mm', id: 'VILL-102', village: 'Gram Panchayat' }
-                ]).map((v) => (
-                  <button
-                    key={v.id || v.name}
-                    onClick={() => handleQuickPatientLogin(v)}
-                    className="px-3.5 py-2 bg-teal-950/80 hover:bg-teal-900 border border-teal-500/50 text-teal-300 rounded-xl text-xs font-black transition shadow-md flex items-center gap-1.5 hover:shadow-[0_0_15px_rgba(20,184,166,0.4)]"
-                  >
-                    <UserCheck className="w-3.5 h-3.5" /> {v.name} ({v.village || 'Rampur'})
-                  </button>
-                ))}
-              </div>
+              
+              {villagers && villagers.length > 0 ? (
+                <div className="flex flex-wrap gap-2">
+                  {villagers.map((v) => (
+                    <button
+                      key={v.id || v.name}
+                      onClick={() => handleQuickPatientLogin(v)}
+                      className="px-3.5 py-2 bg-teal-950/80 hover:bg-teal-900 border border-teal-500/50 text-teal-300 rounded-xl text-xs font-black transition shadow-md flex items-center gap-1.5 hover:shadow-[0_0_15px_rgba(20,184,166,0.4)]"
+                    >
+                      <UserCheck className="w-3.5 h-3.5" /> {v.name} ({v.village || 'Rampur'})
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-[11px] text-slate-500 italic">No patients registered yet. Enter your name below to register instantly.</p>
+              )}
             </div>
           </div>
 
@@ -105,18 +105,19 @@ export default function AuthScreen({ onLoginSuccess, villagers = [], doctors = [
               onClick={() => setSelectedRole('patient')}
               className="w-full py-3.5 bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-400 hover:to-cyan-400 text-slate-950 font-black rounded-2xl text-xs transition-all shadow-[0_0_20px_rgba(20,184,166,0.4)] flex items-center justify-center gap-2 transform hover:scale-[1.02]"
             >
-              Sign In as Patient <ArrowRight className="w-4 h-4" />
+              <UserPlus className="w-4 h-4" /> Register & Sign In as Patient <ArrowRight className="w-4 h-4" />
             </button>
           ) : (
             <form onSubmit={handlePatientSubmit} className="space-y-3 pt-3 border-t border-slate-800/80 text-xs">
               <div>
-                <label className="block text-slate-400 font-bold mb-1">Full Name / Patient ID</label>
+                <label className="block text-slate-400 font-bold mb-1">Your Real Full Name</label>
                 <input
                   type="text"
-                  placeholder="e.g. Rahul Kumar"
+                  placeholder="e.g. Rahul Barad"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-slate-100 outline-none focus:border-teal-500 transition"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-slate-100 outline-none focus:border-teal-500 transition font-bold"
+                  required
                 />
               </div>
               <div>
@@ -133,7 +134,7 @@ export default function AuthScreen({ onLoginSuccess, villagers = [], doctors = [
                 type="submit"
                 className="w-full py-3 bg-gradient-to-r from-teal-500 to-cyan-500 text-slate-950 font-black rounded-2xl text-xs shadow-lg shadow-teal-500/30"
               >
-                Enter Kiosk Portal Now
+                Register Patient & Enter Kiosk
               </button>
             </form>
           )}
@@ -162,24 +163,27 @@ export default function AuthScreen({ onLoginSuccess, villagers = [], doctors = [
               </p>
             </div>
 
-            {/* Quick Demo Doctors Selection Buttons */}
+            {/* Registered Doctors Selector */}
             <div className="space-y-2.5 pt-3 border-t border-slate-800/80">
               <span className="text-[10px] font-extrabold text-cyan-400 uppercase tracking-wider block flex items-center gap-1">
-                <Zap className="w-3.5 h-3.5 fill-current" /> Quick 1-Click Doctor Sign-In:
+                <Stethoscope className="w-3.5 h-3.5" /> Registered Doctors ({doctors.length}):
               </span>
-              <div className="flex flex-wrap gap-2">
-                {(doctors && doctors.length > 0 ? doctors : [
-                  { name: 'Dr. Manish Barad', licenseNo: 'MCI-9901', specialty: 'General Physician' }
-                ]).map((d) => (
-                  <button
-                    key={d.id || d.name}
-                    onClick={() => handleQuickDoctorLogin(d)}
-                    className="px-3.5 py-2 bg-cyan-950/80 hover:bg-cyan-900 border border-cyan-500/50 text-cyan-300 rounded-xl text-xs font-black transition shadow-md flex items-center gap-1.5 hover:shadow-[0_0_15px_rgba(6,182,212,0.4)]"
-                  >
-                    <Stethoscope className="w-3.5 h-3.5" /> {d.name} ({d.licenseNo || 'MCI-9901'})
-                  </button>
-                ))}
-              </div>
+              
+              {doctors && doctors.length > 0 ? (
+                <div className="flex flex-wrap gap-2">
+                  {doctors.map((d) => (
+                    <button
+                      key={d.id || d.name}
+                      onClick={() => handleQuickDoctorLogin(d)}
+                      className="px-3.5 py-2 bg-cyan-950/80 hover:bg-cyan-900 border border-cyan-500/50 text-cyan-300 rounded-xl text-xs font-black transition shadow-md flex items-center gap-1.5 hover:shadow-[0_0_15px_rgba(6,182,212,0.4)]"
+                    >
+                      <Stethoscope className="w-3.5 h-3.5" /> {d.name} ({d.specialty || 'General Physician'})
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-[11px] text-slate-500 italic">No doctors registered yet. Enter your Doctor Name below to register instantly.</p>
+              )}
             </div>
           </div>
 
@@ -189,18 +193,19 @@ export default function AuthScreen({ onLoginSuccess, villagers = [], doctors = [
               onClick={() => setSelectedRole('doctor')}
               className="w-full py-3.5 bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-400 hover:to-teal-400 text-slate-950 font-black rounded-2xl text-xs transition-all shadow-[0_0_20px_rgba(6,182,212,0.4)] flex items-center justify-center gap-2 transform hover:scale-[1.02]"
             >
-              Sign In as Doctor <ArrowRight className="w-4 h-4" />
+              <UserPlus className="w-4 h-4" /> Register & Sign In as Doctor <ArrowRight className="w-4 h-4" />
             </button>
           ) : (
             <form onSubmit={handleDoctorSubmit} className="space-y-3 pt-3 border-t border-slate-800/80 text-xs">
               <div>
-                <label className="block text-slate-400 font-bold mb-1">Doctor Name</label>
+                <label className="block text-slate-400 font-bold mb-1">Your Doctor Name</label>
                 <input
                   type="text"
                   placeholder="e.g. Dr. Manish Barad"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-slate-100 outline-none focus:border-cyan-500 transition"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-slate-100 outline-none focus:border-cyan-500 transition font-bold"
+                  required
                 />
               </div>
               <div>
@@ -217,7 +222,7 @@ export default function AuthScreen({ onLoginSuccess, villagers = [], doctors = [
                 type="submit"
                 className="w-full py-3 bg-gradient-to-r from-cyan-500 to-teal-500 text-slate-950 font-black rounded-2xl text-xs shadow-lg shadow-cyan-500/30"
               >
-                Enter Doctor Command Center
+                Register Doctor & Enter Portal
               </button>
             </form>
           )}

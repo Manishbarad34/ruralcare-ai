@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Camera, Scan, CheckCircle2, User, History, AlertTriangle, Sparkles, RefreshCw, ChevronDown } from 'lucide-react';
+import { Camera, Scan, CheckCircle2, User, History, AlertTriangle, Sparkles, RefreshCw, ChevronDown, UserPlus } from 'lucide-react';
 
 export default function FaceScanner({ onIdentify, onVillagerIdentified, villagers = [], onNext }) {
   const [isScanning, setIsScanning] = useState(false);
@@ -9,12 +9,10 @@ export default function FaceScanner({ onIdentify, onVillagerIdentified, villager
   const videoRef = useRef(null);
   const streamRef = useRef(null);
 
-  const safeVillagers = Array.isArray(villagers) && villagers.length > 0
-    ? villagers
-    : [{ id: 'VILL-101', name: 'Rahul Kumar', age: 30, gender: 'Male', village: 'Rampur', bloodGroup: 'O+' }];
+  const safeVillagers = Array.isArray(villagers) ? villagers : [];
 
-  const [selectedVillagerId, setSelectedVillagerId] = useState(safeVillagers[0]?.id || 'VILL-101');
-  const [identifiedUser, setIdentifiedUser] = useState(safeVillagers[0]);
+  const [selectedVillagerId, setSelectedVillagerId] = useState(safeVillagers[0]?.id || '');
+  const [identifiedUser, setIdentifiedUser] = useState(safeVillagers[0] || null);
 
   useEffect(() => {
     if (safeVillagers && safeVillagers.length > 0) {
@@ -52,7 +50,7 @@ export default function FaceScanner({ onIdentify, onVillagerIdentified, villager
           const found = safeVillagers.find(v => v.id === targetId) || safeVillagers[0];
           setIdentifiedUser(found);
           const callback = onIdentify || onVillagerIdentified;
-          if (callback) callback(found);
+          if (callback && found) callback(found);
           return 100;
         }
         return prev + 25;
@@ -61,7 +59,9 @@ export default function FaceScanner({ onIdentify, onVillagerIdentified, villager
   };
 
   useEffect(() => {
-    startFaceScan(selectedVillagerId);
+    if (selectedVillagerId) {
+      startFaceScan(selectedVillagerId);
+    }
     return () => {
       if (streamRef.current) {
         streamRef.current.getTracks().forEach(t => t.stop());
@@ -75,7 +75,7 @@ export default function FaceScanner({ onIdentify, onVillagerIdentified, villager
     const found = safeVillagers.find(v => v.id === vId) || safeVillagers[0];
     setIdentifiedUser(found);
     const callback = onIdentify || onVillagerIdentified;
-    if (callback) callback(found);
+    if (callback && found) callback(found);
   };
 
   const activeUser = identifiedUser || safeVillagers[0];
@@ -99,38 +99,47 @@ export default function FaceScanner({ onIdentify, onVillagerIdentified, villager
           </div>
         </div>
 
-        <button
-          onClick={() => startFaceScan(selectedVillagerId)}
-          disabled={isScanning}
-          className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-teal-300 rounded-xl text-xs font-extrabold transition flex items-center gap-2 border border-slate-700"
-        >
-          <RefreshCw className={`w-4 h-4 ${isScanning ? 'animate-spin' : ''}`} />
-          Re-Scan Face
-        </button>
+        {safeVillagers.length > 0 && (
+          <button
+            onClick={() => startFaceScan(selectedVillagerId)}
+            disabled={isScanning}
+            className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-teal-300 rounded-xl text-xs font-extrabold transition flex items-center gap-2 border border-slate-700"
+          >
+            <RefreshCw className={`w-4 h-4 ${isScanning ? 'animate-spin' : ''}`} />
+            Re-Scan Face
+          </button>
+        )}
       </div>
 
       {/* Registered Patients Selector Dropdown Bar */}
-      <div className="bg-slate-950 p-3 rounded-2xl border border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-        <div className="flex items-center gap-2 text-xs font-extrabold text-slate-200">
-          <User className="w-4 h-4 text-teal-400" />
-          <span>Select Registered Patient to Scan ({safeVillagers.length}):</span>
-        </div>
+      {safeVillagers.length > 0 ? (
+        <div className="bg-slate-950 p-3 rounded-2xl border border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-2 text-xs font-extrabold text-slate-200">
+            <User className="w-4 h-4 text-teal-400" />
+            <span>Select Registered Patient ({safeVillagers.length}):</span>
+          </div>
 
-        <div className="relative w-full sm:w-72">
-          <select
-            value={selectedVillagerId}
-            onChange={handleSelectVillager}
-            className="w-full bg-slate-900 text-teal-300 font-extrabold border border-slate-700 rounded-xl px-3 py-2 text-xs outline-none cursor-pointer focus:border-teal-500 transition appearance-none pr-8"
-          >
-            {safeVillagers.map((v) => (
-              <option key={v.id} value={v.id}>
-                {v.name} ({v.id}) - {v.village || 'Rampur'}
-              </option>
-            ))}
-          </select>
-          <ChevronDown className="w-4 h-4 text-slate-400 absolute right-2.5 top-2.5 pointer-events-none" />
+          <div className="relative w-full sm:w-72">
+            <select
+              value={selectedVillagerId}
+              onChange={handleSelectVillager}
+              className="w-full bg-slate-900 text-teal-300 font-extrabold border border-slate-700 rounded-xl px-3 py-2 text-xs outline-none cursor-pointer focus:border-teal-500 transition appearance-none pr-8"
+            >
+              {safeVillagers.map((v) => (
+                <option key={v.id} value={v.id}>
+                  {v.name} ({v.id}) - {v.village || 'Rampur'}
+                </option>
+              ))}
+            </select>
+            <ChevronDown className="w-4 h-4 text-slate-400 absolute right-2.5 top-2.5 pointer-events-none" />
+          </div>
         </div>
-      </div>
+      ) : (
+        <div className="p-4 bg-slate-950 rounded-2xl border border-amber-500/40 text-amber-300 text-xs font-bold flex items-center gap-2">
+          <UserPlus className="w-5 h-5 text-amber-400" />
+          <span>No registered patient found yet. Please enter your name on the Login Screen to register your identity.</span>
+        </div>
+      )}
 
       {/* Main Grid: Camera View + Biometric Results */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -192,7 +201,7 @@ export default function FaceScanner({ onIdentify, onVillagerIdentified, villager
               <div>
                 <h4 className="text-lg font-black text-slate-100">{activeUser?.name || 'Patient Guest'}</h4>
                 <p className="text-xs text-slate-400">
-                  ID: {activeUser?.id || 'VILL-101'} • Age: {activeUser?.age || 30} • Village: {activeUser?.village || 'Rampur'}
+                  ID: {activeUser?.id || 'VILL-101'} • Age: {activeUser?.age || 28} • Village: {activeUser?.village || 'Rampur'}
                 </p>
               </div>
             </div>

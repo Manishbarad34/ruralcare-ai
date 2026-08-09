@@ -87,7 +87,7 @@ app.post('/api/ai-triage', async (req, res) => {
   let solution = 'Stay hydrated, take adequate rest, monitor body temperature, and consult online doctor for prescription validation.';
   let suggestedMeds = [];
 
-  if (lowerSym.includes('fever') || lowerSym.includes('fever') || lowerSym.includes('headache') || lowerSym.includes('cold') || lowerSym.includes('flu')) {
+  if (lowerSym.includes('fever') || lowerSym.includes('headache') || lowerSym.includes('cold') || lowerSym.includes('flu')) {
     diagnosis = 'Acute Viral Fever & Upper Respiratory Tract Infection';
     urgency = 'MEDIUM';
     solution = 'Drink warm fluids, keep temperature logs every 4 hours, avoid cold water, and take antipyretic medication under doctor supervision.';
@@ -160,7 +160,7 @@ app.post('/api/register-villager', (req, res) => {
   const data = req.body;
   const newVillager = {
     id: `VILL-${Math.floor(1000 + Math.random() * 9000)}`,
-    name: data.name || 'Rahul Barad',
+    name: data.name || 'Patient Guest',
     age: parseInt(data.age) || 28,
     gender: data.gender || 'Male',
     village: data.village || 'Rampur Gram Panchayat',
