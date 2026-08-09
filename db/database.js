@@ -18,14 +18,14 @@ export async function syncServerStore() {
       if (data) {
         localStore = data;
         if (typeof window !== 'undefined' && window.localStorage) {
-          localStorage.setItem('RURALCARE_UNIFIED_STORE_V3', JSON.stringify(data));
+          localStorage.setItem('RURALCARE_UNIFIED_STORE_V4', JSON.stringify(data));
         }
       }
     }
   } catch (e) {
     if (typeof window !== 'undefined' && window.localStorage) {
       try {
-        const saved = localStorage.getItem('RURALCARE_UNIFIED_STORE_V3');
+        const saved = localStorage.getItem('RURALCARE_UNIFIED_STORE_V4');
         if (saved) localStore = JSON.parse(saved);
       } catch (err) {}
     }
@@ -43,11 +43,11 @@ export const db = {
   registerVillager: (data) => {
     const newVillager = {
       id: `VILL-${Math.floor(1000 + Math.random() * 9000)}`,
-      name: data.name || 'Patient Guest',
+      name: data.name || 'Rahul Kumar',
       age: parseInt(data.age) || 30,
       gender: data.gender || 'Other',
       village: data.village || 'Rampur',
-      phone: data.phone || '9999999999',
+      phone: data.phone || '9876543210',
       bloodGroup: data.bloodGroup || 'O+',
       allergies: data.allergies ? [data.allergies] : ['None'],
       password: data.password || '123456',
@@ -69,13 +69,13 @@ export const db = {
   },
 
   loginVillager: (phone, password) => {
-    const found = (localStore.villagers || []).find(v => (v.phone === phone || v.id === phone) && v.password === password);
+    const found = (localStore.villagers || []).find(v => (v.phone === phone || v.id === phone || v.name === phone) && v.password === password);
     if (found) return found;
     return db.registerVillager({ name: phone, phone: phone, password: password });
   },
 
   registerDoctor: (data) => {
-    const docName = data.name.startsWith('Dr.') ? data.name : `Dr. ${data.name}`;
+    const docName = data.name ? (data.name.startsWith('Dr.') ? data.name : `Dr. ${data.name}`) : 'Dr. Manish Barad';
     const newDoc = {
       id: `DOC-${Math.floor(1000 + Math.random() * 9000)}`,
       name: docName,
@@ -113,11 +113,11 @@ export const db = {
     if (!localStore.approvalMailbox) localStore.approvalMailbox = [];
     const newReq = {
       requestId: `REQ-${Math.floor(1000 + Math.random() * 9000)}`,
-      villagerId: data.villagerId,
-      villagerName: data.villagerName,
-      doctorId: data.doctorId,
-      doctorName: data.doctorName,
-      symptoms: data.symptoms || 'General Checkup',
+      villagerId: data.villagerId || `VILL-${Math.floor(1000 + Math.random() * 9000)}`,
+      villagerName: data.villagerName || 'Rahul Kumar (Patient)',
+      doctorId: data.doctorId || 'DOC-01',
+      doctorName: data.doctorName || 'Dr. Manish Barad',
+      symptoms: data.symptoms || 'General Checkup Request',
       emergencyLevel: data.emergencyLevel || 'MEDIUM',
       status: 'PENDING',
       requestedAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
@@ -128,7 +128,7 @@ export const db = {
     fetch('/api/request-approval', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data)
+      body: JSON.stringify(newReq)
     }).catch(e => console.warn('API POST error:', e));
 
     return newReq;

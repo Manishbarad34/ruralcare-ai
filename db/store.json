@@ -1,6 +1,22 @@
 {
   "villagers": [
     {
+      "id": "VILL-7934",
+      "name": "Rahul Kumar",
+      "age": 30,
+      "gender": "Other",
+      "village": "Rampur",
+      "phone": "9876543210",
+      "bloodGroup": "O+",
+      "allergies": [
+        "None"
+      ],
+      "password": "123456",
+      "registered": true,
+      "createdAt": "2026-08-09T08:35:50.432Z",
+      "medicalHistory": []
+    },
+    {
       "id": "VILL-101",
       "name": "Rahul Kumar",
       "age": 28,
@@ -17,6 +33,17 @@
     }
   ],
   "doctors": [
+    {
+      "id": "DOC-9978",
+      "name": "Dr. mci-1011",
+      "licenseNo": "mci-1011",
+      "specialty": "General Physician",
+      "experience": "5 Yrs",
+      "password": "123456",
+      "status": "Online",
+      "currentLoad": 0,
+      "registered": true
+    },
     {
       "id": "DOC-01",
       "name": "Dr. Manish Barad",

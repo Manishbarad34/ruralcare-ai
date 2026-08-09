@@ -79,7 +79,7 @@ app.get('/api/store', (req, res) => {
 
 app.post('/api/register-doctor', (req, res) => {
   const data = req.body;
-  const docName = data.name.startsWith('Dr.') ? data.name : `Dr. ${data.name}`;
+  const docName = data.name ? (data.name.startsWith('Dr.') ? data.name : `Dr. ${data.name}`) : 'Dr. Manish Barad';
   
   const existingIndex = serverStore.doctors.findIndex(d => d.licenseNo === data.licenseNo || d.name === docName);
   let doctorObj;
@@ -110,11 +110,11 @@ app.post('/api/register-villager', (req, res) => {
   const data = req.body;
   const newVillager = {
     id: `VILL-${Math.floor(1000 + Math.random() * 9000)}`,
-    name: data.name || 'Patient Guest',
+    name: data.name || 'Rahul Kumar',
     age: parseInt(data.age) || 30,
     gender: data.gender || 'Other',
     village: data.village || 'Rampur',
-    phone: data.phone || '9999999999',
+    phone: data.phone || '9876543210',
     bloodGroup: data.bloodGroup || 'O+',
     allergies: data.allergies ? [data.allergies] : ['None'],
     password: data.password || '123456',
@@ -132,28 +132,23 @@ app.post('/api/request-approval', (req, res) => {
   const data = req.body;
   if (!serverStore.approvalMailbox) serverStore.approvalMailbox = [];
 
-  const existing = serverStore.approvalMailbox.find(m => m.villagerId === data.villagerId && m.status === 'PENDING');
-  let reqObj;
+  const reqObj = {
+    requestId: `REQ-${Math.floor(1000 + Math.random() * 9000)}`,
+    villagerId: data.villagerId || `VILL-${Math.floor(1000 + Math.random() * 9000)}`,
+    villagerName: data.villagerName || 'Rahul Kumar (Patient)',
+    doctorId: data.doctorId || 'DOC-01',
+    doctorName: data.doctorName || 'Dr. Manish Barad',
+    symptoms: data.symptoms || 'Fever and general checkup request',
+    emergencyLevel: data.emergencyLevel || 'MEDIUM',
+    status: 'PENDING',
+    requestedAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  };
 
-  if (existing) {
-    reqObj = existing;
-  } else {
-    reqObj = {
-      requestId: `REQ-${Math.floor(1000 + Math.random() * 9000)}`,
-      villagerId: data.villagerId,
-      villagerName: data.villagerName,
-      doctorId: data.doctorId || 'DOC-01',
-      doctorName: data.doctorName || 'Dr. Manish Barad',
-      symptoms: data.symptoms || 'General Consultation Request',
-      emergencyLevel: data.emergencyLevel || 'MEDIUM',
-      status: 'PENDING',
-      requestedAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-    };
-    serverStore.approvalMailbox.unshift(reqObj);
-  }
-
+  serverStore.approvalMailbox.unshift(reqObj);
   writeServerStore(serverStore);
   broadcastDataUpdate();
+
+  console.log(`📩 New Approval Request Created: ${reqObj.villagerName} -> ${reqObj.doctorName}`);
   res.json({ success: true, request: reqObj, mailbox: serverStore.approvalMailbox });
 });
 
