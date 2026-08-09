@@ -1,0 +1,286 @@
+// Prisma Schema for RuralCare AI Production Telemedicine Platform
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  phone        String?  @unique
+  passwordHash String
+  role         String   @default("PATIENT") // PATIENT, DOCTOR, ADMIN
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  patientProfile PatientProfile?
+  doctorProfile  DoctorProfile?
+  
+  sentMessages     Message[]         @relation("SentMessages")
+  receivedMessages Message[]         @relation("ReceivedMessages")
+  initiatedCalls   CallSession[]     @relation("InitiatedCalls")
+  receivedCalls    CallSession[]     @relation("ReceivedCalls")
+  aiConversations  AIConversation[]
+  emergencyEvents  EmergencyEvent[]
+  auditLogs        AuditLog[]
+}
+
+model PatientProfile {
+  id               String   @id @default(uuid())
+  userId           String   @unique
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fullName         String
+  age              Int?
+  gender           String?
+  village          String?
+  district         String?
+  state            String?
+  bloodGroup       String?
+  allergies        String?
+  emergencyContact String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  consultationRequests ConsultationRequest[] @relation("PatientRequests")
+  consultations        Consultation[]        @relation("PatientConsultations")
+  appointments         Appointment[]         @relation("PatientAppointments")
+  prescriptions        Prescription[]        @relation("PatientPrescriptions")
+  medicineOrders       MedicineOrder[]       @relation("PatientOrders")
+  deliveryAddresses    DeliveryAddress[]
+  medicalRecords       MedicalRecord[]
+}
+
+model DoctorProfile {
+  id               String   @id @default(uuid())
+  userId           String   @unique
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fullName         String
+  licenseNo        String   @unique
+  specialty        String   @default("General Physician")
+  experienceYears  Int      @default(5)
+  languages        String   @default("English, Hindi")
+  isVerified       Boolean  @default(true)
+  isOnline         Boolean  @default(true)
+  nextAvailableSlot String?  @default("Today, 10:00 AM")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  consultationRequests ConsultationRequest[] @relation("DoctorRequests")
+  consultations        Consultation[]        @relation("DoctorConsultations")
+  appointments         Appointment[]         @relation("DoctorAppointments")
+  prescriptions        Prescription[]        @relation("DoctorPrescriptions")
+  medicalRecords       MedicalRecord[]
+}
+
+model ConsultationRequest {
+  id           String        @id @default(uuid())
+  patientId    String
+  patient      PatientProfile @relation("PatientRequests", fields: [patientId], references: [id], onDelete: Cascade)
+  doctorId     String
+  doctor       DoctorProfile  @relation("DoctorRequests", fields: [doctorId], references: [id], onDelete: Cascade)
+  symptoms     String
+  urgency      String        @default("MEDIUM")
+  status       String        @default("PENDING") // PENDING, ACCEPTED, REJECTED, CANCELLED, EXPIRED
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  consultation Consultation?
+}
+
+model Consultation {
+  id           String             @id @default(uuid())
+  requestId    String             @unique
+  request      ConsultationRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  patientId    String
+  patient      PatientProfile     @relation("PatientConsultations", fields: [patientId], references: [id], onDelete: Cascade)
+  doctorId     String
+  doctor       DoctorProfile      @relation("DoctorConsultations", fields: [doctorId], references: [id], onDelete: Cascade)
+  status       String             @default("ACTIVE") // ACTIVE, COMPLETED, CANCELLED
+  startedAt    DateTime           @default(now())
+  endedAt      DateTime?
+
+  messages     Message[]
+  callSessions CallSession[]
+  prescription Prescription?
+}
+
+model Appointment {
+  id          String        @id @default(uuid())
+  patientId   String
+  patient     PatientProfile @relation("PatientAppointments", fields: [patientId], references: [id], onDelete: Cascade)
+  doctorId    String
+  doctor      DoctorProfile  @relation("DoctorAppointments", fields: [doctorId], references: [id], onDelete: Cascade)
+  scheduledAt DateTime
+  status      String        @default("SCHEDULED")
+  notes       String?
+  createdAt   DateTime      @default(now())
+}
+
+model Message {
+  id             String       @id @default(uuid())
+  consultationId String
+  consultation   Consultation @relation(fields: [consultationId], references: [id], onDelete: Cascade)
+  senderId       String
+  sender         User         @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
+  receiverId     String
+  receiver       User         @relation("ReceivedMessages", fields: [receiverId], references: [id], onDelete: Cascade)
+  text           String
+  read           Boolean      @default(false)
+  createdAt      DateTime     @default(now())
+}
+
+model CallSession {
+  id             String        @id @default(uuid())
+  consultationId String?
+  consultation   Consultation? @relation(fields: [consultationId], references: [id], onDelete: SetNull)
+  callerId       String
+  caller         User          @relation("InitiatedCalls", fields: [callerId], references: [id], onDelete: Cascade)
+  calleeId       String
+  callee         User          @relation("ReceivedCalls", fields: [calleeId], references: [id], onDelete: Cascade)
+  callType       String        @default("VIDEO") // AUDIO, VIDEO
+  status         String        @default("RINGING") // RINGING, CONNECTED, DECLINED, MISSED, ENDED, FAILED
+  durationSec    Int           @default(0)
+  startedAt      DateTime      @default(now())
+  endedAt        DateTime?
+}
+
+model MedicalRecord {
+  id        String         @id @default(uuid())
+  patientId String
+  patient   PatientProfile @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  doctorId  String?
+  doctor    DoctorProfile? @relation(fields: [doctorId], references: [id], onDelete: SetNull)
+  title     String
+  category  String         @default("Lab Report")
+  notes     String?
+  fileUrl   String?
+  createdAt DateTime       @default(now())
+}
+
+model Prescription {
+  id             String             @id @default(uuid())
+  consultationId String             @unique
+  consultation   Consultation       @relation(fields: [consultationId], references: [id], onDelete: Cascade)
+  patientId      String
+  patient        PatientProfile     @relation("PatientPrescriptions", fields: [patientId], references: [id], onDelete: Cascade)
+  doctorId       String
+  doctor         DoctorProfile      @relation("DoctorPrescriptions", fields: [doctorId], references: [id], onDelete: Cascade)
+  notes          String?
+  createdAt      DateTime           @default(now())
+  items          PrescriptionItem[]
+}
+
+model PrescriptionItem {
+  id             String       @id @default(uuid())
+  prescriptionId String
+  prescription   Prescription @relation(fields: [prescriptionId], references: [id], onDelete: Cascade)
+  medicineName   String
+  strength       String?
+  dosage         String
+  frequency      String
+  duration       String
+}
+
+model Medicine {
+  id                     String   @id @default(uuid())
+  name                   String
+  category               String
+  slot                   String
+  strength               String?
+  price                  Float    @default(0.0)
+  totalCapacity          Int      @default(100)
+  currentStock           Int      @default(80)
+  unit                   String   @default("strips")
+  recommendedDosage      String?
+  isPrescriptionRequired Boolean  @default(false)
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  orderItems MedicineOrderItem[]
+}
+
+model MedicineOrder {
+  id                String            @id @default(uuid())
+  patientId         String
+  patient           PatientProfile    @relation("PatientOrders", fields: [patientId], references: [id], onDelete: Cascade)
+  totalAmount       Float
+  deliveryAddressId String?
+  deliveryAddress   DeliveryAddress?  @relation(fields: [deliveryAddressId], references: [id], onDelete: SetNull)
+  deliveryMethod    String            @default("STANDARD") // STANDARD, EXPRESS, DRONE
+  status            String            @default("PLACED") // PLACED, CONFIRMED, PACKED, OUT_FOR_DELIVERY, DELIVERED, CANCELLED
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  items             MedicineOrderItem[]
+}
+
+model MedicineOrderItem {
+  id           String        @id @default(uuid())
+  orderId      String
+  order        MedicineOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  medicineId   String
+  medicine     Medicine      @relation(fields: [medicineId], references: [id], onDelete: Cascade)
+  medicineName String
+  quantity     Int
+  price        Float
+}
+
+model DeliveryAddress {
+  id          String         @id @default(uuid())
+  patientId   String
+  patient     PatientProfile @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  fullName    String
+  phone       String
+  addressLine String
+  village     String
+  district    String
+  state       String
+  pincode     String
+  landmark    String?
+  createdAt   DateTime       @default(now())
+
+  orders MedicineOrder[]
+}
+
+model AIConversation {
+  id        String      @id @default(uuid())
+  userId    String
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String      @default("Symptom Intake")
+  language  String      @default("English")
+  createdAt DateTime    @default(now())
+  messages  AIMessage[]
+}
+
+model AIMessage {
+  id             String         @id @default(uuid())
+  conversationId String
+  conversation   AIConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  role           String
+  text           String
+  suggestedMeds  String?
+  urgency        String?
+  createdAt      DateTime       @default(now())
+}
+
+model EmergencyEvent {
+  id        String   @id @default(uuid())
+  patientId String
+  patient   User     @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  location  String?
+  status    String   @default("DISPATCHED")
+  createdAt DateTime @default(now())
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  action    String
+  details   String?
+  createdAt DateTime @default(now())
+}

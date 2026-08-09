@@ -1,154 +1,85 @@
 import React, { useState, useEffect } from 'react';
-import Navbar from './components/Navbar.jsx';
 import AuthScreen from './components/AuthScreen.jsx';
-import KioskPortal from './components/KioskPortal.jsx';
-import DoctorPortal from './components/DoctorPortal.jsx';
-import { db, syncServerStore } from '../db/database.js';
-
-class ErrorBoundary extends React.Component {
-  constructor(props) {
-    super(props);
-    this.state = { hasError: false, error: null };
-  }
-  static getDerivedStateFromError(error) {
-    return { hasError: true, error };
-  }
-  componentDidCatch(error, errorInfo) {
-    console.error('RuralCare AI Error Boundary caught crash:', error, errorInfo);
-  }
-  render() {
-    if (this.state.hasError) {
-      return (
-        <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center p-6 text-center">
-          <div className="bg-slate-900 border border-rose-500/50 p-8 rounded-3xl max-w-md shadow-2xl space-y-4">
-            <h2 className="text-xl font-black text-rose-400">System Recovered Smoothly</h2>
-            <p className="text-xs text-slate-400">An unexpected exception occurred. Click reset to reload portal.</p>
-            <button
-              onClick={() => { this.setState({ hasError: false }); window.location.reload(); }}
-              className="px-6 py-2.5 bg-gradient-to-r from-teal-500 to-cyan-500 text-slate-950 font-black rounded-xl text-xs"
-            >
-              Reset Application State
-            </button>
-          </div>
-        </div>
-      );
-    }
-    return this.props.children;
-  }
-}
+import PatientDashboard from './components/PatientDashboard.jsx';
+import DoctorDashboard from './components/DoctorDashboard.jsx';
+import Navbar from './components/Navbar.jsx';
 
 export default function App() {
-  const [authenticatedUser, setAuthenticatedUser] = useState(null);
+  const [currentUser, setCurrentUser] = useState(null);
+  const [authToken, setAuthToken] = useState(localStorage.getItem('RURALCARE_AUTH_TOKEN') || null);
+  const [isLoadingSession, setIsLoadingSession] = useState(true);
 
-  const [villagers, setVillagers] = useState([]);
-  const [doctors, setDoctors] = useState([]);
-  const [inventory, setInventory] = useState([]);
-  const [queue, setQueue] = useState([]);
-
-  // URL Query Parameter Role Direct Sign-In Support (e.g. ?role=doctor or ?role=patient)
+  // Authenticate Session on App Mount
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const roleParam = params.get('role');
-    
-    if (roleParam === 'patient' || roleParam === 'kiosk') {
-      const v = db.registerVillager({ name: 'Rahul Kumar', phone: '9876543210', village: 'Rampur' });
-      setAuthenticatedUser({ ...v, role: 'patient' });
-    } else if (roleParam === 'doctor') {
-      const d = db.registerDoctor({ name: 'Dr. Manish Barad', licenseNo: 'MCI-9901', specialty: 'General Physician' });
-      setAuthenticatedUser({ ...d, role: 'doctor' });
-    } else {
+    const verifySession = async () => {
+      const savedToken = localStorage.getItem('RURALCARE_AUTH_TOKEN');
+      if (!savedToken) {
+        setIsLoadingSession(false);
+        return;
+      }
+
       try {
-        const savedAuth = localStorage.getItem('RURALCARE_AUTH_SESSION_V4');
-        if (savedAuth) {
-          const parsed = JSON.parse(savedAuth);
-          if (parsed && parsed.role) setAuthenticatedUser(parsed);
+        const res = await fetch('/api/auth/me', {
+          headers: { Authorization: `Bearer ${savedToken}` }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setCurrentUser(data.user);
+          setAuthToken(savedToken);
+        } else {
+          localStorage.removeItem('RURALCARE_AUTH_TOKEN');
+          setAuthToken(null);
         }
-      } catch (e) {}
-    }
-  }, []);
-
-  // 1-Second Auto-Sync Engine for Cross-Device Data Sync
-  useEffect(() => {
-    const syncData = async () => {
-      await syncServerStore();
-      setVillagers([...db.getVillagers()]);
-      setDoctors([...db.getDoctors()]);
-      setInventory([...db.getInventory()]);
-      setQueue([...db.getQueue()]);
+      } catch (err) {
+        console.warn('Session verification network error:', err);
+      } finally {
+        setIsLoadingSession(false);
+      }
     };
 
-    syncData();
-    const interval = setInterval(syncData, 1000);
-
-    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsHost = window.location.host || 'localhost:5000';
-    let ws;
-    try {
-      ws = new WebSocket(`${wsProtocol}//${wsHost}`);
-      ws.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          if (data.type === 'data-update') {
-            syncData();
-          }
-        } catch (e) {}
-      };
-    } catch (e) {}
-
-    return () => {
-      clearInterval(interval);
-      if (ws) ws.close();
-    };
+    verifySession();
   }, []);
 
-  const handleLoginSuccess = (userObj) => {
-    setAuthenticatedUser(userObj);
-    localStorage.setItem('RURALCARE_AUTH_SESSION_V4', JSON.stringify(userObj));
+  const handleLoginSuccess = (userObj, token) => {
+    setCurrentUser(userObj);
+    setAuthToken(token);
+    localStorage.setItem('RURALCARE_AUTH_TOKEN', token);
   };
 
-  const handleLogout = () => {
-    setAuthenticatedUser(null);
-    localStorage.removeItem('RURALCARE_AUTH_SESSION_V4');
-    window.history.replaceState({}, document.title, window.location.pathname);
+  const handleSignOut = () => {
+    localStorage.removeItem('RURALCARE_AUTH_TOKEN');
+    setCurrentUser(null);
+    setAuthToken(null);
   };
+
+  if (isLoadingSession) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center text-teal-400 space-y-3 font-mono text-xs">
+        <div className="w-10 h-10 border-4 border-teal-500 border-t-transparent rounded-full animate-spin" />
+        <span>Authenticating Secure Session...</span>
+      </div>
+    );
+  }
 
   return (
-    <ErrorBoundary>
-      <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-teal-500 selection:text-slate-950">
-        
-        <Navbar
-          authenticatedUser={authenticatedUser}
-          onLogout={handleLogout}
-        />
+    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-between selection:bg-teal-500 selection:text-slate-950">
+      <div className="space-y-4">
+        <Navbar user={currentUser} onSignOut={handleSignOut} />
 
-        <main className="flex-1 p-3 sm:p-6 max-w-7xl mx-auto w-full flex flex-col justify-center">
-          {!authenticatedUser ? (
-            <AuthScreen
-              onLoginSuccess={handleLoginSuccess}
-              villagers={villagers}
-              doctors={doctors}
-            />
-          ) : authenticatedUser.role === 'doctor' ? (
-            <DoctorPortal
-              doctors={doctors}
-              queue={queue}
-              inventory={inventory}
-              loggedInDoctor={authenticatedUser}
-              onDispenseMedicine={(medId, villagerId) => db.dispenseMedicine(medId, 1, villagerId, authenticatedUser?.name)}
-            />
+        <main className="px-3 sm:px-6">
+          {!currentUser ? (
+            <AuthScreen onLoginSuccess={handleLoginSuccess} />
+          ) : currentUser.role === 'DOCTOR' ? (
+            <DoctorDashboard user={currentUser} token={authToken} />
           ) : (
-            <KioskPortal
-              villagers={villagers}
-              doctors={doctors}
-              inventory={inventory}
-              aiProvider="GEMINI"
-              isOffline={false}
-              loggedInUser={authenticatedUser}
-            />
+            <PatientDashboard user={currentUser} token={authToken} />
           )}
         </main>
-
       </div>
-    </ErrorBoundary>
+
+      <footer className="border-t border-slate-900 py-4 text-center text-xs text-slate-500 font-mono">
+        RuralCare AI • Production Telemedicine System • SIH 2026 Edition
+      </footer>
+    </div>
   );
 }

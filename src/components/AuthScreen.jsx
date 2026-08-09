@@ -1,231 +1,259 @@
 import React, { useState } from 'react';
-import { Stethoscope, UserCheck, ShieldCheck, ArrowRight, Zap, Lock, Scan, Activity, Sparkles, UserPlus } from 'lucide-react';
-import { db } from '../../db/database.js';
+import { Stethoscope, UserCheck, ShieldCheck, ArrowRight, Lock, User, Phone, FileText, Activity, Heart, Sparkles, CheckCircle2, Building2 } from 'lucide-react';
 
-export default function AuthScreen({ onLoginSuccess, villagers = [], doctors = [] }) {
-  const [selectedRole, setSelectedRole] = useState(null); // 'doctor' | 'patient' | null
-  const [name, setName] = useState('');
+export default function AuthScreen({ onLoginSuccess }) {
+  const [activeTab, setActiveTab] = useState('patient'); // 'patient' | 'doctor'
+  const [isRegistering, setIsRegistering] = useState(false);
+
+  // Form Fields
+  const [identifier, setIdentifier] = useState('');
+  const [password, setPassword] = useState('');
+  const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
   const [licenseNo, setLicenseNo] = useState('');
-  const [password, setPassword] = useState('123456');
+  const [specialty, setSpecialty] = useState('General Physician');
+  const [village, setVillage] = useState('Rampur Gram Panchayat');
+  
+  const [isLoading, setIsLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState(null);
 
-  const handlePatientSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!name.trim()) return alert('Please enter your full name');
-    const villager = db.loginVillager(name.trim(), password);
-    onLoginSuccess({ ...villager, role: 'patient' });
-  };
+    setIsLoading(true);
+    setErrorMsg(null);
 
-  const handleDoctorSubmit = (e) => {
-    e.preventDefault();
-    if (!name.trim()) return alert('Please enter Doctor Name');
-    const doctor = db.loginDoctor(licenseNo.trim() || name.trim(), password);
-    onLoginSuccess({ ...doctor, role: 'doctor' });
-  };
+    const endpoint = isRegistering ? '/api/auth/register' : '/api/auth/login';
+    const payload = isRegistering
+      ? {
+          role: activeTab.toUpperCase(),
+          fullName: fullName.trim(),
+          email: identifier.includes('@') ? identifier.trim() : `${phone || Date.now()}@ruralcare.ai`,
+          phone: phone.trim() || undefined,
+          password: password.trim(),
+          licenseNo: activeTab === 'doctor' ? licenseNo.trim() : undefined,
+          specialty: activeTab === 'doctor' ? specialty : undefined,
+          village: activeTab === 'patient' ? village : undefined
+        }
+      : {
+          identifier: identifier.trim(),
+          password: password.trim(),
+          role: activeTab.toUpperCase()
+        };
 
-  const handleQuickPatientLogin = (selectedVillager) => {
-    onLoginSuccess({ ...selectedVillager, role: 'patient' });
-  };
+    try {
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
 
-  const handleQuickDoctorLogin = (selectedDoc) => {
-    onLoginSuccess({ ...selectedDoc, role: 'doctor' });
+      const data = await res.json();
+      setIsLoading(false);
+
+      if (!res.ok) {
+        setErrorMsg(data.error || 'Authentication failed. Please check your credentials.');
+        return;
+      }
+
+      if (data.token && data.user) {
+        localStorage.setItem('RURALCARE_AUTH_TOKEN', data.token);
+        onLoginSuccess(data.user, data.token);
+      }
+    } catch (err) {
+      setIsLoading(false);
+      setErrorMsg('Network error connecting to authentication server.');
+    }
   };
 
   return (
-    <div className="min-h-[85vh] flex flex-col items-center justify-center p-4 sm:p-6 max-w-5xl mx-auto w-full select-none">
+    <div className="min-h-[90vh] flex items-center justify-center p-4 sm:p-8 max-w-6xl mx-auto w-full select-none">
       
-      {/* Brand Header */}
-      <div className="text-center space-y-3 mb-10">
-        <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-slate-900/90 border border-teal-500/50 text-teal-300 text-xs font-black uppercase tracking-widest shadow-[0_0_20px_rgba(20,184,166,0.3)] animate-pulse-glow">
-          <ShieldCheck className="w-4 h-4 text-teal-400" /> SIH 2026 Telemedicine Authentication Gateway
-        </div>
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 bg-slate-900/90 border border-slate-800 rounded-3xl p-6 sm:p-10 shadow-2xl backdrop-blur-xl w-full overflow-hidden">
         
-        <h1 className="text-3xl sm:text-6xl font-black text-slate-100 tracking-tight">
-          RuralCare <span className="text-transparent bg-clip-text bg-gradient-to-r from-teal-400 via-cyan-400 to-emerald-400 drop-shadow-[0_0_25px_rgba(45,212,191,0.4)]">AI</span> Kiosk
-        </h1>
-        
-        <p className="text-xs sm:text-sm text-slate-400 max-w-xl mx-auto font-medium leading-relaxed">
-          Please select your user role below to authenticate and enter your dedicated healthcare portal.
-        </p>
-      </div>
-
-      {/* Role Selection Cards Grid with 3D Depth */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 w-full max-w-4xl">
-        
-        {/* CARD 1: PATIENT KIOSK PORTAL */}
-        <div className={`glass-card-3d rounded-3xl p-6 sm:p-8 flex flex-col justify-between space-y-6 relative overflow-hidden ${
-          selectedRole === 'patient'
-            ? 'border-teal-400 ring-2 ring-teal-500/50 shadow-[0_0_40px_rgba(20,184,166,0.3)]'
-            : ''
-        }`}>
+        {/* LEFT COLUMN: Premium Healthcare SaaS Visual & Hero Section */}
+        <div className="lg:col-span-6 flex flex-col justify-between space-y-8 pr-0 lg:pr-6 border-b lg:border-b-0 lg:border-r border-slate-800 pb-6 lg:pb-0">
+          
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-teal-500 to-cyan-500 text-slate-950 flex items-center justify-center font-black shadow-[0_0_25px_rgba(20,184,166,0.5)]">
-                <UserCheck className="w-8 h-8 stroke-[2.5]" />
+            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-cyan-950/80 border border-cyan-500/40 text-cyan-300 text-xs font-black uppercase tracking-widest shadow-lg shadow-cyan-500/10">
+              <ShieldCheck className="w-4 h-4 text-cyan-400" /> SIH 2026 Telemedicine Platform
+            </div>
+
+            <h1 className="text-3xl sm:text-5xl font-black text-slate-100 tracking-tight leading-tight">
+              Healthcare, <span className="text-transparent bg-clip-text bg-gradient-to-r from-teal-400 via-cyan-400 to-emerald-400">Connected.</span>
+            </h1>
+
+            <p className="text-xs sm:text-sm text-slate-400 font-medium leading-relaxed max-w-lg">
+              Talk to verified doctors, perform instant AI symptom intakes in 10 Indian languages, receive digital prescriptions, and access automated kiosk pharmacy dispensing.
+            </p>
+          </div>
+
+          {/* Animated Subtle Pulse Health Network Visualizer */}
+          <div className="bg-slate-950 p-5 rounded-2xl border border-slate-800 space-y-3 relative overflow-hidden shadow-inner">
+            <div className="flex items-center justify-between text-xs font-black">
+              <span className="text-teal-400 flex items-center gap-2">
+                <Activity className="w-4 h-4 text-teal-400 animate-pulse" /> Live Tele-Health Network
+              </span>
+              <span className="text-[10px] font-mono bg-emerald-950 text-emerald-300 px-2 py-0.5 rounded border border-emerald-800">
+                256-bit Encrypted
+              </span>
+            </div>
+
+            <div className="grid grid-cols-3 gap-2 text-center text-xs pt-1">
+              <div className="p-3 bg-slate-900 rounded-xl border border-slate-800/80">
+                <span className="block font-black text-slate-100 text-base">100%</span>
+                <span className="text-[10px] text-slate-400">Verified Doctors</span>
               </div>
-              <span className="text-[10px] font-black font-mono bg-teal-950/90 text-teal-300 px-3 py-1 rounded-full border border-teal-600/50 uppercase tracking-wider shadow-inner">
-                Patient Kiosk Mode
-              </span>
-            </div>
-
-            <div>
-              <h3 className="text-2xl font-black text-slate-100">Village Kiosk Patient Entry</h3>
-              <p className="text-xs text-slate-400 mt-1 leading-relaxed">
-                For villagers and rural patients requiring face biometric scanning, blood diagnostics, and doctor consultation.
-              </p>
-            </div>
-
-            {/* Registered Patients Selector */}
-            <div className="space-y-2.5 pt-3 border-t border-slate-800/80">
-              <span className="text-[10px] font-extrabold text-teal-400 uppercase tracking-wider block flex items-center gap-1">
-                <UserCheck className="w-3.5 h-3.5" /> Registered Patients ({villagers.length}):
-              </span>
-              
-              {villagers && villagers.length > 0 ? (
-                <div className="flex flex-wrap gap-2">
-                  {villagers.map((v) => (
-                    <button
-                      key={v.id || v.name}
-                      onClick={() => handleQuickPatientLogin(v)}
-                      className="px-3.5 py-2 bg-teal-950/80 hover:bg-teal-900 border border-teal-500/50 text-teal-300 rounded-xl text-xs font-black transition shadow-md flex items-center gap-1.5 hover:shadow-[0_0_15px_rgba(20,184,166,0.4)]"
-                    >
-                      <UserCheck className="w-3.5 h-3.5" /> {v.name} ({v.village || 'Rampur'})
-                    </button>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-[11px] text-slate-500 italic">No patients registered yet. Enter your name below to register instantly.</p>
-              )}
+              <div className="p-3 bg-slate-900 rounded-xl border border-slate-800/80">
+                <span className="block font-black text-teal-300 text-base">10+</span>
+                <span className="text-[10px] text-slate-400">Languages</span>
+              </div>
+              <div className="p-3 bg-slate-900 rounded-xl border border-slate-800/80">
+                <span className="block font-black text-cyan-300 text-base">HD 1080p</span>
+                <span className="text-[10px] text-slate-400">WebRTC Video</span>
+              </div>
             </div>
           </div>
 
-          {/* Form Expansion toggle */}
-          {selectedRole !== 'patient' ? (
+          {/* Trust Badges */}
+          <div className="flex flex-wrap items-center gap-4 text-xs text-slate-400 font-semibold pt-2">
+            <div className="flex items-center gap-1.5">
+              <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+              <span>HIPAA Compliant</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+              <span>Row-Level Data Privacy</span>
+            </div>
+          </div>
+
+        </div>
+
+        {/* RIGHT COLUMN: Crisp Healthcare SaaS Authentication Card */}
+        <div className="lg:col-span-6 flex flex-col justify-center space-y-6">
+          
+          {/* Role Selector Tabs */}
+          <div className="bg-slate-950 p-1.5 rounded-2xl border border-slate-800 flex items-center gap-2">
             <button
-              onClick={() => setSelectedRole('patient')}
-              className="w-full py-3.5 bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-400 hover:to-cyan-400 text-slate-950 font-black rounded-2xl text-xs transition-all shadow-[0_0_20px_rgba(20,184,166,0.4)] flex items-center justify-center gap-2 transform hover:scale-[1.02]"
+              onClick={() => { setActiveTab('patient'); setErrorMsg(null); }}
+              className={`flex-1 py-3 rounded-xl text-xs font-black transition flex items-center justify-center gap-2 ${
+                activeTab === 'patient'
+                  ? 'bg-gradient-to-r from-teal-500 to-cyan-500 text-slate-950 shadow-lg shadow-teal-500/30'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
             >
-              <UserPlus className="w-4 h-4" /> Register & Sign In as Patient <ArrowRight className="w-4 h-4" />
+              <UserCheck className="w-4 h-4" /> Patient Portal
             </button>
-          ) : (
-            <form onSubmit={handlePatientSubmit} className="space-y-3 pt-3 border-t border-slate-800/80 text-xs">
-              <div>
-                <label className="block text-slate-400 font-bold mb-1">Your Real Full Name</label>
-                <input
-                  type="text"
-                  placeholder="e.g. Rahul Barad"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-slate-100 outline-none focus:border-teal-500 transition font-bold"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-slate-400 font-bold mb-1">Mobile Phone Number</label>
-                <input
-                  type="text"
-                  placeholder="e.g. 9876543210"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-slate-100 outline-none focus:border-teal-500 transition"
-                />
-              </div>
-              <button
-                type="submit"
-                className="w-full py-3 bg-gradient-to-r from-teal-500 to-cyan-500 text-slate-950 font-black rounded-2xl text-xs shadow-lg shadow-teal-500/30"
-              >
-                Register Patient & Enter Kiosk
-              </button>
-            </form>
+
+            <button
+              onClick={() => { setActiveTab('doctor'); setErrorMsg(null); }}
+              className={`flex-1 py-3 rounded-xl text-xs font-black transition flex items-center justify-center gap-2 ${
+                activeTab === 'doctor'
+                  ? 'bg-gradient-to-r from-cyan-500 to-teal-500 text-slate-950 shadow-lg shadow-cyan-500/30'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <Stethoscope className="w-4 h-4" /> Doctor Command Center
+            </button>
+          </div>
+
+          {errorMsg && (
+            <div className="p-3.5 bg-rose-950/90 border border-rose-500 rounded-2xl text-xs text-rose-200 font-bold flex items-center gap-2">
+              <Lock className="w-4 h-4 text-rose-400 flex-shrink-0" />
+              <span>{errorMsg}</span>
+            </div>
           )}
-        </div>
 
-        {/* CARD 2: DOCTOR COMMAND CENTER PORTAL */}
-        <div className={`glass-card-3d rounded-3xl p-6 sm:p-8 flex flex-col justify-between space-y-6 relative overflow-hidden ${
-          selectedRole === 'doctor'
-            ? 'border-cyan-400 ring-2 ring-cyan-500/50 shadow-[0_0_40px_rgba(6,182,212,0.3)]'
-            : ''
-        }`}>
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-cyan-500 to-teal-500 text-slate-950 flex items-center justify-center font-black shadow-[0_0_25px_rgba(6,182,212,0.5)]">
-                <Stethoscope className="w-8 h-8 stroke-[2.5]" />
-              </div>
-              <span className="text-[10px] font-black font-mono bg-cyan-950/90 text-cyan-300 px-3 py-1 rounded-full border border-cyan-600/50 uppercase tracking-wider shadow-inner">
-                Doctor Mode
-              </span>
+          <form onSubmit={handleSubmit} className="space-y-4 text-xs">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+              <h3 className="font-black text-slate-100 text-base">
+                {isRegistering ? `Create ${activeTab === 'doctor' ? 'Doctor' : 'Patient'} Account` : `Sign In to ${activeTab === 'doctor' ? 'Doctor Portal' : 'Patient Portal'}`}
+              </h3>
+              <button
+                type="button"
+                onClick={() => setIsRegistering(!isRegistering)}
+                className="text-teal-400 hover:underline font-bold text-xs"
+              >
+                {isRegistering ? 'Already have an account? Sign In' : 'Need an account? Register'}
+              </button>
             </div>
 
-            <div>
-              <h3 className="text-2xl font-black text-slate-100">Doctor Command Center</h3>
-              <p className="text-xs text-slate-400 mt-1 leading-relaxed">
-                For verified medical doctors to manage patient approval mailboxes, priority queues, and HD WebRTC consultations.
-              </p>
-            </div>
-
-            {/* Registered Doctors Selector */}
-            <div className="space-y-2.5 pt-3 border-t border-slate-800/80">
-              <span className="text-[10px] font-extrabold text-cyan-400 uppercase tracking-wider block flex items-center gap-1">
-                <Stethoscope className="w-3.5 h-3.5" /> Registered Doctors ({doctors.length}):
-              </span>
-              
-              {doctors && doctors.length > 0 ? (
-                <div className="flex flex-wrap gap-2">
-                  {doctors.map((d) => (
-                    <button
-                      key={d.id || d.name}
-                      onClick={() => handleQuickDoctorLogin(d)}
-                      className="px-3.5 py-2 bg-cyan-950/80 hover:bg-cyan-900 border border-cyan-500/50 text-cyan-300 rounded-xl text-xs font-black transition shadow-md flex items-center gap-1.5 hover:shadow-[0_0_15px_rgba(6,182,212,0.4)]"
-                    >
-                      <Stethoscope className="w-3.5 h-3.5" /> {d.name} ({d.specialty || 'General Physician'})
-                    </button>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-[11px] text-slate-500 italic">No doctors registered yet. Enter your Doctor Name below to register instantly.</p>
-              )}
-            </div>
-          </div>
-
-          {/* Form Expansion toggle */}
-          {selectedRole !== 'doctor' ? (
-            <button
-              onClick={() => setSelectedRole('doctor')}
-              className="w-full py-3.5 bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-400 hover:to-teal-400 text-slate-950 font-black rounded-2xl text-xs transition-all shadow-[0_0_20px_rgba(6,182,212,0.4)] flex items-center justify-center gap-2 transform hover:scale-[1.02]"
-            >
-              <UserPlus className="w-4 h-4" /> Register & Sign In as Doctor <ArrowRight className="w-4 h-4" />
-            </button>
-          ) : (
-            <form onSubmit={handleDoctorSubmit} className="space-y-3 pt-3 border-t border-slate-800/80 text-xs">
+            {isRegistering && (
               <div>
-                <label className="block text-slate-400 font-bold mb-1">Your Doctor Name</label>
+                <label className="block text-slate-400 font-bold mb-1">Full Name</label>
                 <input
                   type="text"
-                  placeholder="e.g. Dr. Manish Barad"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-slate-100 outline-none focus:border-cyan-500 transition font-bold"
+                  placeholder={activeTab === 'doctor' ? 'Dr. Manish Barad' : 'Rahul Barad'}
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 outline-none focus:border-teal-500 transition font-bold"
                   required
                 />
               </div>
+            )}
+
+            <div>
+              <label className="block text-slate-400 font-bold mb-1">
+                {activeTab === 'doctor' ? 'Email / License Number / Phone' : 'Email or Mobile Phone Number'}
+              </label>
+              <input
+                type="text"
+                placeholder={activeTab === 'doctor' ? 'MCI-9901 or doctor@ruralcare.ai' : '9876543210 or patient@ruralcare.ai'}
+                value={identifier}
+                onChange={(e) => setIdentifier(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 outline-none focus:border-teal-500 transition font-bold"
+                required
+              />
+            </div>
+
+            {isRegistering && activeTab === 'doctor' && (
               <div>
-                <label className="block text-slate-400 font-bold mb-1">MCI Medical License Number</label>
+                <label className="block text-slate-400 font-bold mb-1">MCI License Number</label>
                 <input
                   type="text"
-                  placeholder="e.g. MCI-9901"
+                  placeholder="MCI-9901"
                   value={licenseNo}
                   onChange={(e) => setLicenseNo(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-slate-100 outline-none focus:border-cyan-500 transition"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 outline-none focus:border-cyan-500 transition"
+                  required
                 />
               </div>
-              <button
-                type="submit"
-                className="w-full py-3 bg-gradient-to-r from-cyan-500 to-teal-500 text-slate-950 font-black rounded-2xl text-xs shadow-lg shadow-cyan-500/30"
-              >
-                Register Doctor & Enter Portal
-              </button>
-            </form>
-          )}
+            )}
+
+            {isRegistering && activeTab === 'patient' && (
+              <div>
+                <label className="block text-slate-400 font-bold mb-1">Village / Gram Panchayat Location</label>
+                <input
+                  type="text"
+                  placeholder="Rampur Gram Panchayat, District Rajkot"
+                  value={village}
+                  onChange={(e) => setVillage(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 outline-none focus:border-teal-500 transition"
+                />
+              </div>
+            )}
+
+            <div>
+              <label className="block text-slate-400 font-bold mb-1">Password</label>
+              <input
+                type="password"
+                placeholder="••••••••"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 outline-none focus:border-teal-500 transition"
+                required
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={isLoading}
+              className="w-full py-3.5 bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-400 hover:to-cyan-400 text-slate-950 font-black rounded-2xl text-xs transition shadow-lg shadow-teal-500/30 flex items-center justify-center gap-2 transform hover:scale-[1.02] disabled:opacity-50"
+            >
+              {isLoading ? 'Authenticating...' : isRegistering ? 'Complete Registration & Sign In' : 'Sign In Now'}
+              <ArrowRight className="w-4 h-4" />
+            </button>
+          </form>
+
         </div>
 
       </div>
