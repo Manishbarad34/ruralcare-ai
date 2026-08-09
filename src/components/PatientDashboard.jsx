@@ -3,7 +3,8 @@ import AITriageChat from './AITriageChat.jsx';
 import MedicineMarketplace from './MedicineMarketplace.jsx';
 import VideoConsultation from './VideoConsultation.jsx';
 import IncomingCallModal from './IncomingCallModal.jsx';
-import { User, Stethoscope, Bot, Mic, Video, PackageCheck, Send, CheckCircle2, AlertTriangle, Globe, Sparkles, Inbox, PhoneCall, ShoppingBag, FileText, Clock } from 'lucide-react';
+import DirectChatOverlay from './DirectChatOverlay.jsx';
+import { User, Stethoscope, Bot, Mic, Video, PackageCheck, Send, CheckCircle2, AlertTriangle, Globe, Sparkles, Inbox, PhoneCall, ShoppingBag, FileText, Clock, MessageSquare, Phone, Check, Zap } from 'lucide-react';
 
 export default function PatientDashboard({ user, token }) {
   const [activeTab, setActiveTab] = useState('intake');
@@ -20,6 +21,8 @@ export default function PatientDashboard({ user, token }) {
   const [incomingCall, setIncomingCall] = useState(null);
   const [isCallingDoctor, setIsCallingDoctor] = useState(false);
   const [callingDoctorName, setCallingDoctorName] = useState('');
+  const [callingDoctorUserId, setCallingDoctorUserId] = useState(null);
+  const [isDirectChatOpen, setIsDirectChatOpen] = useState(false);
 
   const wsRef = useRef(null);
   const patientName = user?.patientProfile?.fullName || user?.email?.split('@')[0] || 'Patient';
@@ -52,7 +55,6 @@ export default function PatientDashboard({ user, token }) {
         console.log('🔌 Patient WebSocket Event Received:', data.type);
 
         if (data.type === 'call:invite') {
-          // Doctor is calling Patient -> Ringing modal pops up on Patient's phone!
           setIncomingCall({
             callerUserId: data.senderUserId,
             callerName: data.payload?.callerName || 'Doctor',
@@ -64,7 +66,7 @@ export default function PatientDashboard({ user, token }) {
         } else if (data.type === 'call:decline') {
           setIsCallingDoctor(false);
           setIncomingCall(null);
-          alert('Call was declined.');
+          alert('Call was declined by doctor.');
         }
       } catch (err) {}
     };
@@ -101,7 +103,7 @@ export default function PatientDashboard({ user, token }) {
   useEffect(() => {
     fetchDoctors();
     fetchPatientRequests();
-    const interval = setInterval(fetchPatientRequests, 2000);
+    const interval = setInterval(fetchPatientRequests, 1000);
     return () => clearInterval(interval);
   }, [token]);
 
@@ -157,6 +159,26 @@ export default function PatientDashboard({ user, token }) {
     }
   };
 
+  const handleInitiateCallToDoctor = (docProfile) => {
+    const docName = docProfile?.fullName || 'Doctor';
+    const docUserId = docProfile?.userId;
+
+    setCallingDoctorName(docName);
+    setCallingDoctorUserId(docUserId);
+    setIsCallingDoctor(true);
+
+    if (wsRef.current && wsRef.current.readyState === 1 && docUserId) {
+      wsRef.current.send(JSON.stringify({
+        type: 'call:invite',
+        targetUserId: docUserId,
+        payload: {
+          callerName: patientName,
+          isVideo: true
+        }
+      }));
+    }
+  };
+
   const handleAcceptDoctorCall = () => {
     if (wsRef.current && wsRef.current.readyState === 1 && incomingCall?.callerUserId) {
       wsRef.current.send(JSON.stringify({
@@ -179,9 +201,21 @@ export default function PatientDashboard({ user, token }) {
     setIncomingCall(null);
   };
 
+  // Find Approved Requests
+  const approvedRequest = myRequests.find(r => r.status === 'ACCEPTED');
+
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-12 w-full px-2 sm:px-4 select-none">
       
+      {/* Direct Live Chat Overlay Modal */}
+      <DirectChatOverlay
+        isOpen={isDirectChatOpen}
+        onClose={() => setIsDirectChatOpen(false)}
+        currentRole="patient"
+        activeUser={user?.patientProfile}
+        peerUser={approvedRequest?.doctor}
+      />
+
       {/* Incoming Call Ringing Modal on Patient's Phone */}
       <IncomingCallModal
         incomingCall={incomingCall}
@@ -196,11 +230,68 @@ export default function PatientDashboard({ user, token }) {
             <div className="w-16 h-16 rounded-full bg-teal-500/20 text-teal-300 border-2 border-teal-400 flex items-center justify-center mx-auto animate-ping">
               <PhoneCall className="w-8 h-8" />
             </div>
-            <h3 className="text-xl font-black text-slate-100">Calling {callingDoctorName}...</h3>
-            <p className="text-xs text-slate-400 animate-pulse">Ringing... Waiting for Doctor to Accept</p>
-            <button onClick={() => setIsCallingDoctor(false)} className="px-6 py-2 bg-rose-600 text-white rounded-xl text-xs font-bold">
+            <h3 className="text-xl font-black text-slate-100">Ringing {callingDoctorName}...</h3>
+            <p className="text-xs text-slate-400 animate-pulse">Call invitation sent to Doctor. Waiting for Doctor to Accept...</p>
+            <button
+              onClick={() => {
+                setIsCallingDoctor(false);
+                if (wsRef.current && wsRef.current.readyState === 1 && callingDoctorUserId) {
+                  wsRef.current.send(JSON.stringify({ type: 'call:decline', targetUserId: callingDoctorUserId }));
+                }
+              }}
+              className="px-6 py-2 bg-rose-600 hover:bg-rose-500 text-white font-black rounded-xl text-xs"
+            >
               Cancel Call
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* APPROVED CONSULTATION ACTION BANNER (WHEN DOCTOR ACCEPTS REQUEST) */}
+      {approvedRequest && (
+        <div className="bg-gradient-to-r from-emerald-950/90 via-teal-950/90 to-slate-900 border-2 border-emerald-500 rounded-3xl p-5 sm:p-6 shadow-[0_0_40px_rgba(16,185,129,0.3)] space-y-4 animate-fade-in">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-emerald-800/80 pb-4">
+            <div className="flex items-center gap-3">
+              <div className="p-3 bg-emerald-500 text-slate-950 rounded-2xl font-black shadow-lg shadow-emerald-500/40">
+                <CheckCircle2 className="w-6 h-6 stroke-[3]" />
+              </div>
+              <div>
+                <h3 className="text-lg sm:text-xl font-black text-emerald-300 flex items-center gap-2">
+                  ✅ REQUEST APPROVED BY {approvedRequest.doctor?.fullName || 'Doctor'}!
+                  <span className="text-[10px] bg-emerald-500 text-slate-950 px-2.5 py-0.5 rounded-full font-mono uppercase font-black">
+                    You Can Talk Now
+                  </span>
+                </h3>
+                <p className="text-xs text-slate-300 font-medium mt-0.5">
+                  Specialty: {approvedRequest.doctor?.specialty || 'General Physician'} • Doctor is online and ready for consultation.
+                </p>
+              </div>
+            </div>
+
+            {/* Approved Doctor Action Control Buttons: Video Call, Voice Call, Direct Chat */}
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <button
+                onClick={() => handleInitiateCallToDoctor(approvedRequest.doctor)}
+                className="flex-1 sm:flex-initial px-4 py-2.5 bg-gradient-to-r from-emerald-400 to-teal-400 text-slate-950 font-black rounded-2xl text-xs flex items-center justify-center gap-1.5 shadow-lg shadow-emerald-500/30 transform hover:scale-105 transition"
+              >
+                <Video className="w-4 h-4 fill-current" /> Start 1080p Video Call
+              </button>
+
+              <button
+                onClick={() => handleInitiateCallToDoctor(approvedRequest.doctor)}
+                className="flex-1 sm:flex-initial px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-emerald-300 font-extrabold rounded-2xl text-xs border border-slate-700 flex items-center justify-center gap-1.5 transition"
+              >
+                <Phone className="w-4 h-4 text-emerald-400" /> Voice Call
+              </button>
+
+              <button
+                onClick={() => setIsDirectChatOpen(true)}
+                className="p-2.5 bg-slate-800 hover:bg-slate-700 text-cyan-300 rounded-2xl border border-slate-700 transition"
+                title="Open Direct Live Chat"
+              >
+                <MessageSquare className="w-5 h-5" />
+              </button>
+            </div>
           </div>
         </div>
       )}
