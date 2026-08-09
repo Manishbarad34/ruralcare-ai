@@ -6,8 +6,10 @@ import VideoConsultation from './VideoConsultation.jsx';
 import VendingMachineDispenser from './VendingMachineDispenser.jsx';
 import DoctorReviewChat from './DoctorReviewChat.jsx';
 import IncomingCallModal from './IncomingCallModal.jsx';
+import DeliveryPanel from './DeliveryPanel.jsx';
+import DirectChatOverlay from './DirectChatOverlay.jsx';
 import { db, syncServerStore } from '../../db/database.js';
-import { UserCheck, Droplet, Bot, Video, PackageCheck, Star, ArrowRight, CheckCircle2, Send, Zap, AlertCircle, Inbox, X, PhoneCall, PhoneOff } from 'lucide-react';
+import { UserCheck, Droplet, Bot, Video, PackageCheck, Star, ArrowRight, CheckCircle2, Send, Zap, AlertCircle, Inbox, X, PhoneCall, Truck, MessageSquare } from 'lucide-react';
 
 export default function KioskPortal({ villagers = [], doctors = [], inventory = [], aiProvider, isOffline, loggedInUser }) {
   const [currentStep, setCurrentStep] = useState(1);
@@ -17,9 +19,10 @@ export default function KioskPortal({ villagers = [], doctors = [], inventory = 
   const [assignedDoctor, setAssignedDoctor] = useState(doctors[0] || { id: 'DOC-01', name: 'Dr. Manish Barad', specialty: 'General Physician' });
   const [approvalRequest, setApprovalRequest] = useState(null);
 
-  // Call Signaling State
+  // Call Signaling & Direct Chat State
   const [isCallingDoctor, setIsCallingDoctor] = useState(false);
   const [incomingCallFromDoctor, setIncomingCallFromDoctor] = useState(null);
+  const [isChatOpen, setIsChatOpen] = useState(false);
   const [wsInstance, setWsInstance] = useState(null);
 
   useEffect(() => {
@@ -91,10 +94,11 @@ export default function KioskPortal({ villagers = [], doctors = [], inventory = 
   const steps = [
     { num: 1, label: 'Biometric Scan', icon: UserCheck },
     { num: 2, label: 'Blood Vitals', icon: Droplet },
-    { num: 3, label: 'AI Triage', icon: Bot },
+    { num: 3, label: 'AI Triage & Clinical Q&A', icon: Bot },
     { num: 4, label: 'Doctor Video Call', icon: Video },
     { num: 5, label: 'Medicine Dispenser', icon: PackageCheck },
-    { num: 6, label: 'Feedback', icon: Star },
+    { num: 6, label: 'Emergency Delivery', icon: Truck },
+    { num: 7, label: 'Feedback', icon: Star },
   ];
 
   const handleFaceIdentified = (villager) => {
@@ -175,6 +179,25 @@ export default function KioskPortal({ villagers = [], doctors = [], inventory = 
   return (
     <div className="space-y-4 sm:space-y-6 max-w-7xl mx-auto pb-12 w-full overflow-x-hidden px-2 sm:px-4">
       
+      {/* Direct Live Chat Overlay Button */}
+      <div className="fixed bottom-6 right-6 z-40">
+        <button
+          onClick={() => setIsChatOpen(!isChatOpen)}
+          className="p-3.5 bg-gradient-to-r from-teal-500 to-cyan-500 text-slate-950 rounded-full shadow-2xl font-black flex items-center gap-2 transform hover:scale-105 border border-teal-300"
+        >
+          <MessageSquare className="w-6 h-6 fill-current" />
+          <span className="text-xs hidden sm:inline">Direct Chat with Doctor</span>
+        </button>
+      </div>
+
+      <DirectChatOverlay
+        isOpen={isChatOpen}
+        onClose={() => setIsChatOpen(false)}
+        currentRole="patient"
+        activeUser={identifiedVillager}
+        peerUser={assignedDoctor}
+      />
+
       {/* Incoming Call Ringing Modal from Doctor */}
       <IncomingCallModal
         incomingCall={incomingCallFromDoctor}
@@ -384,6 +407,13 @@ export default function KioskPortal({ villagers = [], doctors = [], inventory = 
         )}
 
         {currentStep === 6 && (
+          <DeliveryPanel
+            villager={identifiedVillager}
+            inventory={inventory}
+          />
+        )}
+
+        {currentStep === 7 && (
           <DoctorReviewChat
             villager={identifiedVillager}
             doctor={assignedDoctor}

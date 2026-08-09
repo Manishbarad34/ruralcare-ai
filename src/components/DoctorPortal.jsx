@@ -2,8 +2,10 @@ import React, { useState, useEffect } from 'react';
 import VideoConsultation from './VideoConsultation.jsx';
 import DoctorChatModal from './DoctorChatModal.jsx';
 import IncomingCallModal from './IncomingCallModal.jsx';
+import DeliveryPanel from './DeliveryPanel.jsx';
+import DirectChatOverlay from './DirectChatOverlay.jsx';
 import { db, syncServerStore } from '../../db/database.js';
-import { Stethoscope, User, Video, MessageSquare, CheckCircle2, Clock, Droplet, PackageCheck, AlertTriangle, ShieldCheck, Heart, Sparkles, Inbox, RefreshCw, X, ChevronDown, Check, BellRing, Pill, Plus, Minus, Send, Zap, PhoneCall, PhoneOff } from 'lucide-react';
+import { Stethoscope, User, Video, MessageSquare, CheckCircle2, Clock, Droplet, PackageCheck, AlertTriangle, ShieldCheck, Heart, Sparkles, Inbox, RefreshCw, X, ChevronDown, Check, BellRing, Pill, Plus, Minus, Send, Zap, PhoneCall, PhoneOff, Truck } from 'lucide-react';
 
 export default function DoctorPortal({ doctors = [], queue = [], inventory = [], onDispenseMedicine, loggedInDoctor }) {
   const [selectedDoctor, setSelectedDoctor] = useState(loggedInDoctor || doctors[0] || { id: 'DOC-01', name: 'Dr. Manish Barad', specialty: 'General Physician' });
@@ -16,10 +18,11 @@ export default function DoctorPortal({ doctors = [], queue = [], inventory = [],
   const [selectedDosage, setSelectedDosage] = useState({});
   const [dispenseSuccessMsg, setDispenseSuccessMsg] = useState(null);
 
-  // Call Signaling State
+  // Call Signaling & Direct Chat State
   const [isCallingPatient, setIsCallingPatient] = useState(false);
   const [callingPatientName, setCallingPatientName] = useState('');
   const [incomingCallFromPatient, setIncomingCallFromPatient] = useState(null);
+  const [isChatOpen, setIsChatOpen] = useState(false);
   const [wsInstance, setWsInstance] = useState(null);
 
   useEffect(() => {
@@ -151,6 +154,25 @@ export default function DoctorPortal({ doctors = [], queue = [], inventory = [],
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-12 w-full">
       
+      {/* Direct Live Chat Overlay Button */}
+      <div className="fixed bottom-6 right-6 z-40">
+        <button
+          onClick={() => setIsChatOpen(!isChatOpen)}
+          className="p-3.5 bg-gradient-to-r from-cyan-500 to-teal-500 text-slate-950 rounded-full shadow-2xl font-black flex items-center gap-2 transform hover:scale-105 border border-cyan-300"
+        >
+          <MessageSquare className="w-6 h-6 fill-current" />
+          <span className="text-xs hidden sm:inline">Live Chat with Patient</span>
+        </button>
+      </div>
+
+      <DirectChatOverlay
+        isOpen={isChatOpen}
+        onClose={() => setIsChatOpen(false)}
+        currentRole="doctor"
+        activeUser={selectedDoctor}
+        peerUser={{ name: 'Patient' }}
+      />
+
       {/* Incoming Call Ringing Modal from Patient */}
       <IncomingCallModal
         incomingCall={incomingCallFromPatient}
@@ -414,6 +436,9 @@ export default function DoctorPortal({ doctors = [], queue = [], inventory = [],
           })}
         </div>
       </div>
+
+      {/* Emergency Delivery Control Panel */}
+      <DeliveryPanel inventory={inventory} />
 
       <DoctorChatModal
         isOpen={!!activeChatModal}
