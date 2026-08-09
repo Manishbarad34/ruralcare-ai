@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Video, VideoOff, Mic, MicOff, PhoneOff, User, Stethoscope, Camera, AlertCircle } from 'lucide-react';
+import { Video, VideoOff, Mic, MicOff, PhoneOff, User, Stethoscope, Camera, AlertCircle, Phone } from 'lucide-react';
 
-export default function VideoConsultation({ villager, doctor, currentRole, onCallEnded, socket, targetUserId }) {
-  const [isVideoMuted, setIsVideoMuted] = useState(false);
+export default function VideoConsultation({ villager, doctor, currentRole, onCallEnded, socket, targetUserId, isVideoCallMode = true }) {
+  const [isVideoMuted, setIsVideoMuted] = useState(!isVideoCallMode);
   const [isAudioMuted, setIsAudioMuted] = useState(false);
   const [callDuration, setCallDuration] = useState(0);
-  const [connectionStatus, setConnectionStatus] = useState('Connecting 1080p WebRTC Stream...');
+  const [connectionStatus, setConnectionStatus] = useState(isVideoCallMode ? 'Connecting 1080p WebRTC Video Stream...' : 'Connecting HD WebRTC Voice Stream...');
   const [permissionNote, setPermissionNote] = useState(null);
 
   const localVideoRef = useRef(null);
@@ -28,41 +28,47 @@ export default function VideoConsultation({ villager, doctor, currentRole, onCal
     let animationFrameId;
 
     const setupWebRTC = async () => {
-      // 1. Get Local Camera & Microphone Stream
+      // Check for Insecure Context (HTTP IP)
+      if (typeof window !== 'undefined' && !window.isSecureContext && window.location.hostname !== 'localhost') {
+        setPermissionNote('🔒 Browser Security Note: Mobile Chrome blocks Camera on HTTP IP. Please use the HTTPS link for camera access!');
+      }
+
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { width: { ideal: 1280 }, height: { ideal: 720 } },
-          audio: true
-        });
+        // Request Camera if Video Call Mode, or Audio-Only if Voice Call Mode
+        const constraints = isVideoCallMode
+          ? { video: { width: { ideal: 1280 }, height: { ideal: 720 } }, audio: true }
+          : { video: false, audio: true };
+
+        const stream = await navigator.mediaDevices.getUserMedia(constraints);
         localStreamRef.current = stream;
 
-        // Assign ONLY to Local Video Viewfinder
-        if (localVideoRef.current) {
+        // Assign to Local Viewfinder
+        if (localVideoRef.current && isVideoCallMode) {
           localVideoRef.current.srcObject = stream;
         }
 
-        // 2. Initialize Genuine RTCPeerConnection
+        // Initialize PeerConnection
         const pc = new RTCPeerConnection(rtcConfig);
         peerConnectionRef.current = pc;
 
-        // Add Local Tracks to PeerConnection
+        // Add Local Media Tracks
         stream.getTracks().forEach(track => {
           pc.addTrack(track, stream);
         });
 
-        // 3. Listen for Genuine Remote Track (ontrack)
+        // Listen for Genuine Remote Track
         pc.ontrack = (event) => {
-          console.log('🎥 WebRTC Remote Track Event Received!', event.streams);
+          console.log('🎥 WebRTC Remote Track Received:', event.streams);
           if (event.streams && event.streams[0]) {
             remoteStreamRef.current = event.streams[0];
             if (remoteVideoRef.current) {
               remoteVideoRef.current.srcObject = event.streams[0];
             }
-            setConnectionStatus('1080p HD Encrypted Peer Connection Active');
+            setConnectionStatus(isVideoCallMode ? '1080p HD Live Stream Connected' : 'HD Encrypted Voice Stream Connected');
           }
         };
 
-        // 4. Handle ICE Candidates
+        // ICE Candidates Routing
         pc.onicecandidate = (event) => {
           if (event.candidate && socket && targetUserId) {
             socket.send(JSON.stringify({
@@ -74,19 +80,16 @@ export default function VideoConsultation({ villager, doctor, currentRole, onCal
         };
 
         pc.onconnectionstatechange = () => {
-          console.log('📡 WebRTC Connection State:', pc.connectionState);
           if (pc.connectionState === 'connected') {
-            setConnectionStatus('1080p HD Live Stream Connected');
+            setConnectionStatus(isVideoCallMode ? '1080p HD Live Stream Connected' : 'HD Encrypted Voice Stream Connected');
           }
         };
 
-        // Fallback 3D ECG canvas if remote track is waiting
         startFallbackCanvas();
 
       } catch (err) {
-        console.warn('Webcam access error:', err);
-        setConnectionStatus('3D Audio-Only ECG Call Active');
-        setPermissionNote('💡 Grant Camera permission in Chrome for real video stream.');
+        console.warn('Media access error:', err);
+        setConnectionStatus('3D Audio-Only Call Active');
         startFallbackCanvas();
       }
     };
@@ -132,7 +135,7 @@ export default function VideoConsultation({ villager, doctor, currentRole, onCal
         localStreamRef.current.getTracks().forEach(t => t.stop());
       }
     };
-  }, [currentRole, targetUserId]);
+  }, [currentRole, targetUserId, isVideoCallMode]);
 
   const toggleVideo = () => {
     if (localStreamRef.current) {
@@ -171,12 +174,12 @@ export default function VideoConsultation({ villager, doctor, currentRole, onCal
           <div className="w-3 h-3 rounded-full bg-emerald-500 animate-ping" />
           <div>
             <h3 className="font-black text-slate-100 text-sm sm:text-base flex items-center gap-2">
-              {currentRole === 'doctor' ? `Live Call with Patient: ${villager?.fullName || villager?.name || 'Patient'}` : `Live Call with Doctor: ${doctor?.fullName || doctor?.name || 'Dr. Manish Barad'}`}
+              {isVideoCallMode ? '📹 Video Call' : '📞 Voice Call'} with {currentRole === 'doctor' ? (villager?.fullName || villager?.name || 'Patient') : (doctor?.fullName || doctor?.name || 'Doctor')}
               <span className="text-[10px] bg-emerald-950 text-emerald-300 px-2 py-0.5 rounded-full border border-emerald-800 font-mono font-bold">
                 {connectionStatus}
               </span>
             </h3>
-            <p className="text-xs text-slate-400">Call Duration: <span className="font-mono text-cyan-300 font-extrabold">{formatTime(callDuration)}</span></p>
+            <p className="text-xs text-slate-400">Duration: <span className="font-mono text-cyan-300 font-extrabold">{formatTime(callDuration)}</span></p>
           </div>
         </div>
 
@@ -192,10 +195,10 @@ export default function VideoConsultation({ villager, doctor, currentRole, onCal
         </div>
       )}
 
-      {/* Main 2-Way Video Call Grid */}
+      {/* Main 2-Way Call Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         
-        {/* Remote Video Stream (PEER CAMERA ONLY) */}
+        {/* Remote Video/Audio Stream */}
         <div className="relative bg-slate-950 rounded-2xl overflow-hidden border-2 border-slate-800 h-64 sm:h-80 flex items-center justify-center shadow-inner">
           <video
             ref={remoteVideoRef}
@@ -207,21 +210,28 @@ export default function VideoConsultation({ villager, doctor, currentRole, onCal
 
           <div className="absolute top-3 left-3 bg-slate-900/80 backdrop-blur-md px-3 py-1 rounded-xl border border-slate-700 text-xs text-slate-200 font-bold flex items-center gap-1.5">
             {currentRole === 'doctor' ? <User className="w-4 h-4 text-teal-400" /> : <Stethoscope className="w-4 h-4 text-cyan-400" />}
-            <span>{currentRole === 'doctor' ? (villager?.fullName || villager?.name || 'Patient Remote Camera') : (doctor?.fullName || doctor?.name || 'Doctor Remote Camera')}</span>
+            <span>{currentRole === 'doctor' ? (villager?.fullName || villager?.name || 'Patient Stream') : (doctor?.fullName || doctor?.name || 'Doctor Stream')}</span>
           </div>
         </div>
 
-        {/* Local Video Stream (SELF CAMERA ONLY) */}
+        {/* Local Video Stream */}
         <div className="relative bg-slate-950 rounded-2xl overflow-hidden border-2 border-slate-800 h-64 sm:h-80 flex items-center justify-center shadow-inner">
-          <video
-            ref={localVideoRef}
-            autoPlay
-            playsInline
-            muted
-            className={`w-full h-full object-cover transform -scale-x-100 ${isVideoMuted ? 'hidden' : 'block'}`}
-          />
+          {isVideoCallMode ? (
+            <video
+              ref={localVideoRef}
+              autoPlay
+              playsInline
+              muted
+              className={`w-full h-full object-cover transform -scale-x-100 ${isVideoMuted ? 'hidden' : 'block'}`}
+            />
+          ) : (
+            <div className="text-center p-6 space-y-2">
+              <Phone className="w-12 h-12 text-teal-400 mx-auto animate-pulse" />
+              <p className="text-xs text-slate-300 font-bold">HD Voice Call Active</p>
+            </div>
+          )}
 
-          {isVideoMuted && (
+          {isVideoMuted && isVideoCallMode && (
             <div className="text-center p-6 space-y-2">
               <VideoOff className="w-10 h-10 text-slate-600 mx-auto" />
               <p className="text-xs text-slate-500">Camera Turned Off</p>
@@ -230,7 +240,7 @@ export default function VideoConsultation({ villager, doctor, currentRole, onCal
 
           <div className="absolute top-3 left-3 bg-slate-900/80 backdrop-blur-md px-3 py-1 rounded-xl border border-slate-700 text-xs text-slate-200 font-bold flex items-center gap-1.5">
             <Camera className="w-4 h-4 text-emerald-400" />
-            <span>Your Camera ({currentRole === 'doctor' ? 'Doctor View' : 'Patient View'})</span>
+            <span>You ({currentRole === 'doctor' ? 'Doctor' : 'Patient'})</span>
           </div>
         </div>
 
@@ -249,16 +259,18 @@ export default function VideoConsultation({ villager, doctor, currentRole, onCal
           {isAudioMuted ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
         </button>
 
-        <button
-          onClick={toggleVideo}
-          className={`p-3.5 rounded-2xl border transition ${
-            isVideoMuted
-              ? 'bg-rose-950 text-rose-300 border-rose-800'
-              : 'bg-slate-800 text-slate-200 hover:bg-slate-700 border-slate-700'
-          }`}
-        >
-          {isVideoMuted ? <VideoOff className="w-5 h-5" /> : <Video className="w-5 h-5" />}
-        </button>
+        {isVideoCallMode && (
+          <button
+            onClick={toggleVideo}
+            className={`p-3.5 rounded-2xl border transition ${
+              isVideoMuted
+                ? 'bg-rose-950 text-rose-300 border-rose-800'
+                : 'bg-slate-800 text-slate-200 hover:bg-slate-700 border-slate-700'
+            }`}
+          >
+            {isVideoMuted ? <VideoOff className="w-5 h-5" /> : <Video className="w-5 h-5" />}
+          </button>
+        )}
 
         <button
           onClick={endCall}
