@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import AuthScreen from './components/AuthScreen.jsx';
 import PatientDashboard from './components/PatientDashboard.jsx';
 import DoctorDashboard from './components/DoctorDashboard.jsx';
@@ -8,6 +8,7 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState(null);
   const [authToken, setAuthToken] = useState(localStorage.getItem('RURALCARE_AUTH_TOKEN') || null);
   const [isLoadingSession, setIsLoadingSession] = useState(true);
+  const [socket, setSocket] = useState(null);
 
   // Authenticate Session on App Mount
   useEffect(() => {
@@ -40,6 +41,35 @@ export default function App() {
     verifySession();
   }, []);
 
+  // Establish Global Authenticated WebSocket Connection
+  useEffect(() => {
+    if (!authToken || !currentUser) {
+      if (socket) socket.close();
+      setSocket(null);
+      return;
+    }
+
+    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsHost = window.location.host || 'localhost:5000';
+    const wsUrl = `${wsProtocol}//${wsHost}?token=${authToken}`;
+
+    const ws = new WebSocket(wsUrl);
+
+    ws.onopen = () => {
+      console.log('🔌 App Global WebSocket Connected & Authenticated!');
+    };
+
+    ws.onerror = (err) => {
+      console.warn('App WebSocket Error:', err);
+    };
+
+    setSocket(ws);
+
+    return () => {
+      ws.close();
+    };
+  }, [authToken, currentUser]);
+
   const handleLoginSuccess = (userObj, token) => {
     setCurrentUser(userObj);
     setAuthToken(token);
@@ -47,16 +77,18 @@ export default function App() {
   };
 
   const handleSignOut = () => {
+    if (socket) socket.close();
     localStorage.removeItem('RURALCARE_AUTH_TOKEN');
     setCurrentUser(null);
     setAuthToken(null);
+    setSocket(null);
   };
 
   if (isLoadingSession) {
     return (
-      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center text-teal-400 space-y-3 font-mono text-xs">
+      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center text-teal-400 space-y-3 font-mono text-xs select-none">
         <div className="w-10 h-10 border-4 border-teal-500 border-t-transparent rounded-full animate-spin" />
-        <span>Authenticating Secure Session...</span>
+        <span>Authenticating Secure Telemedicine Session...</span>
       </div>
     );
   }
@@ -70,9 +102,9 @@ export default function App() {
           {!currentUser ? (
             <AuthScreen onLoginSuccess={handleLoginSuccess} />
           ) : currentUser.role === 'DOCTOR' ? (
-            <DoctorDashboard user={currentUser} token={authToken} />
+            <DoctorDashboard user={currentUser} token={authToken} socket={socket} />
           ) : (
-            <PatientDashboard user={currentUser} token={authToken} />
+            <PatientDashboard user={currentUser} token={authToken} socket={socket} />
           )}
         </main>
       </div>

@@ -1,12 +1,12 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import VideoConsultation from './VideoConsultation.jsx';
 import IncomingCallModal from './IncomingCallModal.jsx';
 import DirectChatOverlay from './DirectChatOverlay.jsx';
 import DeliveryPanel from './DeliveryPanel.jsx';
-import { Stethoscope, User, Video, MessageSquare, CheckCircle2, Clock, PackageCheck, ShieldCheck, Inbox, X, Check, BellRing, Pill, Plus, Minus, Send, PhoneCall, Phone, Sparkles } from 'lucide-react';
+import { Stethoscope, User, Video, MessageSquare, CheckCircle2, Clock, PackageCheck, ShieldCheck, Inbox, X, Check, BellRing, Pill, Plus, Minus, Send, PhoneCall, Phone, Sparkles, Bell } from 'lucide-react';
 
-export default function DoctorDashboard({ user, token }) {
-  const [activeTab, setActiveTab] = useState('active'); // 'active' | 'mailbox' | 'prescriptions' | 'delivery'
+export default function DoctorDashboard({ user, token, socket }) {
+  const [activeTab, setActiveTab] = useState('active');
   const [mailboxRequests, setMailboxRequests] = useState([]);
   const [activeConsultation, setActiveConsultation] = useState(null);
   
@@ -16,9 +16,13 @@ export default function DoctorDashboard({ user, token }) {
   const [callingTargetUserId, setCallingTargetUserId] = useState(null);
   const [incomingCall, setIncomingCall] = useState(null);
 
-  // Direct Chat State
+  // Floating Toast Notification State
+  const [toastNotification, setToastNotification] = useState(null);
+
+  // WhatsApp Direct Chat State
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [chatTargetUser, setChatTargetUser] = useState(null);
+  const [chatRequestId, setChatRequestId] = useState(null);
 
   // Prescription Generator State
   const [prescribeNotes, setPrescribeNotes] = useState('');
@@ -27,29 +31,44 @@ export default function DoctorDashboard({ user, token }) {
   ]);
   const [successMsg, setSuccessMsg] = useState(null);
 
-  const wsRef = useRef(null);
   const doctorProfile = user?.doctorProfile || { fullName: 'Dr. Practitioner', licenseNo: 'MCI-9901', specialty: 'General Physician' };
 
-  // Setup Targeted Authenticated WebSocket Client Connection
+  // Audio Beep Generator for Calls and Messages
+  const playAudioChime = (frequency = 440, type = 'sine') => {
+    try {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = type;
+      osc.frequency.setValueAtTime(frequency, ctx.currentTime);
+      gain.gain.setValueAtTime(0.1, ctx.currentTime);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.3);
+    } catch (e) {}
+  };
+
+  // Attach Global Socket Listener
   useEffect(() => {
-    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsHost = window.location.host || 'localhost:5000';
-    const wsUrl = `${wsProtocol}//${wsHost}?token=${token}`;
+    if (!socket) return;
 
-    const ws = new WebSocket(wsUrl);
-    wsRef.current = ws;
-
-    ws.onmessage = (event) => {
+    const handleMessage = (event) => {
       try {
         const data = JSON.parse(event.data);
+        console.log('🔌 Doctor Dashboard Received WebSocket Signal:', data.type);
 
         if (data.type === 'call:invite') {
+          playAudioChime(587.33, 'triangle');
           setIncomingCall({
             callerUserId: data.senderUserId,
             callerName: data.payload?.callerName || 'Patient',
-            isVideo: true
+            isVideo: data.payload?.isVideo !== false
           });
         } else if (data.type === 'call:accept') {
+          playAudioChime(880, 'sine');
           setIsCallingPatient(false);
           setActiveConsultation({
             fullName: callingPatientName || 'Patient',
@@ -59,14 +78,22 @@ export default function DoctorDashboard({ user, token }) {
           setIsCallingPatient(false);
           setIncomingCall(null);
           alert('Call was declined by patient.');
+        } else if (data.type === 'chat:message') {
+          playAudioChime(659.25, 'sine');
+          setToastNotification({
+            title: `💬 New Message`,
+            message: data.payload?.text || 'Patient sent a message'
+          });
+          setTimeout(() => setToastNotification(null), 4000);
         }
       } catch (err) {}
     };
 
+    socket.addEventListener('message', handleMessage);
     return () => {
-      ws.close();
+      socket.removeEventListener('message', handleMessage);
     };
-  }, [token, callingPatientName, callingTargetUserId]);
+  }, [socket, callingPatientName, callingTargetUserId]);
 
   // Fetch Doctor's Consultation Mailbox
   const fetchDoctorMailbox = async () => {
@@ -113,8 +140,8 @@ export default function DoctorDashboard({ user, token }) {
     setCallingTargetUserId(targetPatientUserId);
     setIsCallingPatient(true);
 
-    if (wsRef.current && wsRef.current.readyState === 1 && targetPatientUserId) {
-      wsRef.current.send(JSON.stringify({
+    if (socket && socket.readyState === 1 && targetPatientUserId) {
+      socket.send(JSON.stringify({
         type: 'call:invite',
         targetUserId: targetPatientUserId,
         payload: {
@@ -125,17 +152,20 @@ export default function DoctorDashboard({ user, token }) {
     }
   };
 
-  const handleOpenChatWithPatient = (patientObj) => {
+  const handleOpenChatWithPatient = (reqItem) => {
+    const patientObj = reqItem.patient;
     setChatTargetUser({
       userId: patientObj?.userId || patientObj?.user?.id,
-      fullName: patientObj?.fullName || 'Patient'
+      fullName: patientObj?.fullName || 'Patient',
+      village: patientObj?.village || 'Rampur Panchayat'
     });
+    setChatRequestId(reqItem.id);
     setIsChatOpen(true);
   };
 
   const handleAcceptIncomingCall = () => {
-    if (wsRef.current && wsRef.current.readyState === 1 && incomingCall?.callerUserId) {
-      wsRef.current.send(JSON.stringify({
+    if (socket && socket.readyState === 1 && incomingCall?.callerUserId) {
+      socket.send(JSON.stringify({
         type: 'call:accept',
         targetUserId: incomingCall.callerUserId
       }));
@@ -148,8 +178,8 @@ export default function DoctorDashboard({ user, token }) {
   };
 
   const handleDeclineIncomingCall = () => {
-    if (wsRef.current && wsRef.current.readyState === 1 && incomingCall?.callerUserId) {
-      wsRef.current.send(JSON.stringify({
+    if (socket && socket.readyState === 1 && incomingCall?.callerUserId) {
+      socket.send(JSON.stringify({
         type: 'call:decline',
         targetUserId: incomingCall.callerUserId
       }));
@@ -190,15 +220,29 @@ export default function DoctorDashboard({ user, token }) {
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-12 w-full px-2 sm:px-4 select-none">
       
-      {/* Direct Live Chat Overlay Modal */}
+      {/* Floating Notification Toast */}
+      {toastNotification && (
+        <div className="fixed top-20 right-4 z-50 bg-slate-900 border-2 border-teal-500 text-slate-100 p-4 rounded-2xl shadow-2xl flex items-center gap-3 animate-bounce max-w-xs">
+          <Bell className="w-6 h-6 text-teal-400 flex-shrink-0 animate-pulse" />
+          <div>
+            <h4 className="font-black text-xs text-teal-300">{toastNotification.title}</h4>
+            <p className="text-[11px] text-slate-200 font-medium">{toastNotification.message}</p>
+          </div>
+        </div>
+      )}
+
+      {/* WhatsApp Direct Chat Overlay Modal */}
       <DirectChatOverlay
         isOpen={isChatOpen}
         onClose={() => setIsChatOpen(false)}
         currentRole="doctor"
         activeUser={user?.doctorProfile}
         peerUser={chatTargetUser}
-        wsRef={wsRef}
+        socket={socket}
         targetUserId={chatTargetUser?.userId}
+        onStartCall={handleInitiateCallToPatient}
+        requestId={chatRequestId}
+        token={token}
       />
 
       {/* Incoming Call Ringing Modal from Patient */}
@@ -220,8 +264,8 @@ export default function DoctorDashboard({ user, token }) {
             <button
               onClick={() => {
                 setIsCallingPatient(false);
-                if (wsRef.current && wsRef.current.readyState === 1 && callingTargetUserId) {
-                  wsRef.current.send(JSON.stringify({ type: 'call:decline', targetUserId: callingTargetUserId }));
+                if (socket && socket.readyState === 1 && callingTargetUserId) {
+                  socket.send(JSON.stringify({ type: 'call:decline', targetUserId: callingTargetUserId }));
                 }
               }}
               className="px-6 py-2 bg-rose-600 hover:bg-rose-500 text-white font-black rounded-xl text-xs"
@@ -246,7 +290,7 @@ export default function DoctorDashboard({ user, token }) {
               </span>
             </h2>
             <p className="text-xs text-slate-400 font-medium">
-              Specialty: {doctorProfile.specialty} • License: {doctorProfile.licenseNo} • Targeted WebSockets
+              Specialty: {doctorProfile.specialty} • License: {doctorProfile.licenseNo} • WhatsApp Telemedicine Engine
             </p>
           </div>
         </div>
@@ -268,7 +312,7 @@ export default function DoctorDashboard({ user, token }) {
               <h3 className="font-extrabold text-slate-100 text-sm sm:text-base flex items-center gap-2">
                 Approved Active Patients Directory ({approvedRequests.length})
                 <span className="text-[10px] bg-emerald-950 text-emerald-300 px-2 py-0.5 rounded-full border border-emerald-800 font-mono">
-                  Ready to Call & Chat
+                  Ready to Call & WhatsApp Chat
                 </span>
               </h3>
               <p className="text-xs text-slate-400">Patients whose consultation requests have been approved by you</p>
@@ -317,10 +361,10 @@ export default function DoctorDashboard({ user, token }) {
                   </button>
 
                   <button
-                    onClick={() => handleOpenChatWithPatient(req.patient)}
+                    onClick={() => handleOpenChatWithPatient(req)}
                     className="py-2.5 bg-slate-800 hover:bg-slate-700 text-cyan-300 font-extrabold rounded-xl text-[11px] border border-slate-700 flex items-center justify-center gap-1"
                   >
-                    <MessageSquare className="w-3.5 h-3.5" /> Chat
+                    <MessageSquare className="w-3.5 h-3.5" /> WhatsApp Chat
                   </button>
                 </div>
               </div>
@@ -426,7 +470,7 @@ export default function DoctorDashboard({ user, token }) {
           doctor={doctorProfile}
           currentRole="doctor"
           onCallEnded={() => setActiveConsultation(null)}
-          socket={wsRef.current}
+          socket={socket}
           targetUserId={activeConsultation?.targetUserId}
         />
       )}
